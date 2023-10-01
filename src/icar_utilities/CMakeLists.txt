@@ -17,6 +17,7 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(tf2 REQUIRED)
+find_package(icar_interfaces REQUIRED)
 find_package(OpenCV REQUIRED)
 
 add_executable(camera_dateset_labeler src/camera_dataset_labeler.cpp)
@@ -28,7 +29,18 @@ ament_target_dependencies(
   tf2
   OpenCV)
 
+add_executable(pixel_cm_visualizer src/pixel_cm_visualizer.cpp)
+ament_target_dependencies(
+  pixel_cm_visualizer
+  rclcpp
+  sensor_msgs
+  cv_bridge
+  tf2
+  icar_interfaces
+  OpenCV)
+
 install(TARGETS camera_dateset_labeler DESTINATION lib/${PROJECT_NAME})
+install(TARGETS pixel_cm_visualizer DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
