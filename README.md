@@ -32,3 +32,24 @@ sudo apt-get install librealsense2-dbg
 # Install ROS wrapper:
 sudo apt install ros-humble-realsense2-*
 ```
+
+### libserialport
+
+`libserialport` is a minimal, cross-platform shared library written in C that is intended to take care of the OS-specific details when writing software that uses serial ports. This package can be installed using commands below:
+
+```bash
+# Clone the repository:
+git clone git://sigrok.org/libserialport && cd libserialport
+
+# Build and install:
+./autogen.sh
+./configure
+make
+sudo make install
+
+# Update shared library cache:
+sudo ldconfig
+
+# Clean up:
+cd .. && rm -rf libserialport
+```
