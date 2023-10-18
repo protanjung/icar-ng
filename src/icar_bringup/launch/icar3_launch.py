@@ -16,5 +16,10 @@ def generate_launch_description():
                     parameters=[{'stm32_ip': '192.168.50.2',
                                  'stm32_port': 9798}],
                     respawn=True)
+    io_gps = Node(package='icar_io',
+                  executable='io_gps',
+                  name='io_gps',
+                  respawn=True)
 
-    return LaunchDescription([io_stm32])
+    return LaunchDescription([io_stm32,
+                              io_gps])

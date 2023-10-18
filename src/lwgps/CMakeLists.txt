@@ -1,37 +1,28 @@
 cmake_minimum_required(VERSION 3.8)
-project(icar_io)
+project(lwgps)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-list(APPEND CMAKE_MODULE_PATH "/usr/local/share/cmake/GeographicLib/")
-
-set(var_dependencies
-    rclcpp
-    std_msgs
-    sensor_msgs
-    geometry_msgs
-    icar_interfaces
-    lwgps)
-
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(GeographicLib REQUIRED)
-foreach(vardependency ${var_dependencies})
-  find_package(${vardependency} REQUIRED)
-endforeach()
 
-include_directories(${GeographicLib_INCLUDE_DIRS})
+add_library(lwgps src/lwgps.c)
+target_include_directories(
+  lwgps PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+               "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>")
 
-add_executable(io_stm32 src/io_stm32.cpp)
-add_executable(io_gps src/io_gps.cpp)
-ament_target_dependencies(io_stm32 ${var_dependencies})
-ament_target_dependencies(io_gps ${var_dependencies})
-target_link_libraries(io_gps ${GeographicLib_LIBRARIES} serialport)
+install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
 
-install(TARGETS io_stm32 DESTINATION lib/${PROJECT_NAME})
-install(TARGETS io_gps DESTINATION lib/${PROJECT_NAME})
+install(
+  TARGETS lwgps
+  EXPORT export_${PROJECT_NAME}
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin)
+
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

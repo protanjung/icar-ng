@@ -31,6 +31,7 @@ class IOSTM32 : public rclcpp::Node {
   int socket_fd = 0;
   struct sockaddr_in socket_server_address;
   struct sockaddr_in socket_client_address;
+  rclcpp::Time socket_time;
   uint16_t socket_tx_len;
   uint16_t socket_rx_len;
   uint8_t socket_tx_buffer[1024];

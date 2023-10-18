@@ -13,6 +13,14 @@ foreach(vardependency ${var_dependencies})
   find_package(${vardependency} REQUIRED)
 endforeach()
 
+include_directories(include)
+
+add_executable(routine src/routine_main.cpp src/routine_motion.cpp
+                       src/routine_process.cpp)
+ament_target_dependencies(routine ${var_dependencies})
+
+install(TARGETS routine DESTINATION lib/${PROJECT_NAME})
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights comment the
