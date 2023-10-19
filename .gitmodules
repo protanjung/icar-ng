@@ -1,0 +1,6 @@
+[submodule "src/rslidar_sdk"]
+	path = src/rslidar_sdk
+	url = https://github.com/protanjung/rslidar_sdk.git
+[submodule "src/rslidar_msg"]
+	path = src/rslidar_msg
+	url = https://github.com/protanjung/rslidar_msg.git
