@@ -4,3 +4,6 @@
 [submodule "src/rslidar_msg"]
 	path = src/rslidar_msg
 	url = https://github.com/protanjung/rslidar_msg.git
+[submodule "src/pandu_ros2_kit"]
+	path = src/pandu_ros2_kit
+	url = https://github.com/protanjung/pandu_ros2_kit.git
