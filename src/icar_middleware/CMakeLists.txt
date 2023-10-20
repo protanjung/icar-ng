@@ -1,17 +1,11 @@
 cmake_minimum_required(VERSION 3.8)
-project(icar_routine)
+project(icar_middleware)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-set(var_dependencies
-    rclcpp
-    tf2_geometry_msgs
-    std_msgs
-    geometry_msgs
-    icar_interfaces
-    pandu_ros2_kit)
+set(var_dependencies rclcpp tf2 tf2_ros)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
@@ -19,13 +13,10 @@ foreach(vardependency ${var_dependencies})
   find_package(${vardependency} REQUIRED)
 endforeach()
 
-include_directories(include)
+add_executable(transform_broadcaster src/transform_broadcaster.cpp)
+ament_target_dependencies(transform_broadcaster ${var_dependencies})
 
-add_executable(routine src/routine_main.cpp src/routine_motion.cpp
-                       src/routine_process.cpp)
-ament_target_dependencies(routine ${var_dependencies})
-
-install(TARGETS routine DESTINATION lib/${PROJECT_NAME})
+install(TARGETS transform_broadcaster DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

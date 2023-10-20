@@ -21,8 +21,8 @@ class IOGPS : public rclcpp::Node {
   rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr pub_gps_navsatfix;
   rclcpp::Publisher<geometry_msgs::msg::Pose2D>::SharedPtr pub_gps_pose2d;
 
-  //-----Serial connection
-  //======================
+  // Serial connection
+  // =================
   struct sp_port *serial_port;
   rclcpp::Time serial_time;
   uint16_t serial_tx_len;
@@ -50,14 +50,14 @@ class IOGPS : public rclcpp::Node {
 
   IOGPS() : Node("io_gps") {
     //-----Parameter
-    this->declare_parameter("gps_port", "/dev/ttyUSB0");
-    this->declare_parameter("gps_baud", 9600);
-    this->declare_parameter("gps_origin_lat", -7.277463);
-    this->declare_parameter("gps_origin_lon", 112.797930);
-    this->get_parameter("gps_port", gps_port);
-    this->get_parameter("gps_baud", gps_baud);
-    this->get_parameter("gps_origin_lat", gps_origin_lat);
-    this->get_parameter("gps_origin_lon", gps_origin_lon);
+    this->declare_parameter("gps.port", rclcpp::PARAMETER_STRING);
+    this->declare_parameter("gps.baud", rclcpp::PARAMETER_INTEGER);
+    this->declare_parameter("gps.origin_lat", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("gps.origin_lon", rclcpp::PARAMETER_DOUBLE);
+    this->get_parameter("gps.port", gps_port);
+    this->get_parameter("gps.baud", gps_baud);
+    this->get_parameter("gps.origin_lat", gps_origin_lat);
+    this->get_parameter("gps.origin_lon", gps_origin_lon);
     //-----Timer
     tim_100hz = this->create_wall_timer(10ms, std::bind(&IOGPS::cllbck_tim_100hz, this));
     //-----Publisher

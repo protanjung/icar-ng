@@ -6,12 +6,50 @@ from launch import LaunchDescription
 from launch.actions import RegisterEventHandler, EmitEvent, ExecuteProcess
 from launch.events import Shutdown
 from launch.event_handlers import OnProcessExit
+from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
 
 
+# Collection of parameters for icar3 tested by Pandu Surya Tantra and Moh Ismarintan Zazuli.
+# Should yo want to ask about these parameters, please contact them.
+param_icar = {'icar.tf.rear_axle': [0.00, 0.00, 0.30, 0.00, 0.00, 0.00],
+              'icar.tf.front_axle': [2.30, 0.00, 0.30, 0.00, 0.00, 0.00],
+              'icar.tf.body': [1.15, 0.00, 1.18, 0.00, 0.00, 0.00],
+              'icar.tf.gps': [2.30, 0.00, 2.05, 0.00, 0.00, 0.00],
+              'icar.tf.lidar_front': [2.95, 0.00, 0.70, 0.00, -8.00, 179.00],
+              'icar.tf.lidar_rearright': [-0.61, -0.81, 0.70, 0.00, 0.00, -131.00],
+              'icar.tyre.width': 185,
+              'icar.tyre.aspect_ratio': 60,
+              'icar.tyre.rim_diameter': 15,
+              'icar.body.length': 3.50,
+              'icar.body.width': 1.50,
+              'icar.body.height': 1.75,
+              'icar.wheelbase': 2.30}
+param_stm32 = {'stm32.ip': '192.168.50.2',
+               'stm32.port': 9798}
+param_gps = {'gps.port': '/dev/ttyUSB0',
+             'gps.baud': 115200,
+             'gps.origin_lat': -7.277463,
+             'gps.origin_lon': 112.797930}
+
+# if 'GTK_PATH' environment variable is set, rviz2 will crash
+# to avoid this, delete the variable before launching rviz2
+if 'GTK_PATH' in os.environ:
+    del os.environ['GTK_PATH']
+
+# set rcutils logging format to only show severity and message
+# also force colorized output to be enabled
+os.environ['RCUTILS_CONSOLE_OUTPUT_FORMAT'] = "[{severity}]: {message}"
+os.environ['RCUTILS_COLORIZED_OUTPUT'] = "1"
+
+icar_ng_data_path = os.path.join(os.environ['HOME'], 'icar-ng-data')
+
+
 def generate_launch_description():
-    os.environ['RCUTILS_CONSOLE_OUTPUT_FORMAT'] = "[{severity}]: {message}"
-    os.environ['RCUTILS_COLORIZED_OUTPUT'] = "1"
+    rviz2 = Node(package='rviz2',
+                 executable='rviz2',
+                 name='rviz2',
+                 arguments=['-d', PathJoinSubstitution([icar_ng_data_path, 'rviz', 'icar3.rviz'])])
 
     realsense2_camera_node = Node(package='realsense2_camera',
                                   executable='realsense2_camera_node',
@@ -35,16 +73,31 @@ def generate_launch_description():
     io_stm32 = Node(package='icar_io',
                     executable='io_stm32',
                     name='io_stm32',
-                    parameters=[{'stm32_ip': '192.168.50.2',
-                                 'stm32_port': 9798}],
+                    parameters=[param_stm32],
                     respawn=True)
 
     io_gps = Node(package='icar_io',
                   executable='io_gps',
                   name='io_gps',
+                  parameters=[param_gps],
                   respawn=True)
 
-    return LaunchDescription([realsense2_camera_node,
-                              imu_filter_madgwick_node,
-                              io_stm32,
-                              io_gps])
+    transform_broadcaster = Node(package='icar_middleware',
+                                 executable='transform_broadcaster',
+                                 name='transform_broadcaster',
+                                 parameters=[param_icar],
+                                 respawn=True)
+
+    routine = Node(package='icar_routine',
+                   executable='routine',
+                   name='routine',
+                   parameters=[param_icar],
+                   respawn=True)
+
+    return LaunchDescription([rviz2,
+                              # realsense2_camera_node,
+                              # imu_filter_madgwick_node,
+                              # io_stm32,
+                              # io_gps,
+                              transform_broadcaster,
+                              routine])

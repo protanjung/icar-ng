@@ -58,10 +58,10 @@ class IOSTM32 : public rclcpp::Node {
 
   IOSTM32() : Node("io_stm32") {
     //-----Parameter
-    this->declare_parameter("stm32_ip", "293.268.50.2");
-    this->declare_parameter("stm32_port", 9798);
-    this->get_parameter("stm32_ip", stm32_ip);
-    this->get_parameter("stm32_port", stm32_port);
+    this->declare_parameter("stm32.ip", rclcpp::PARAMETER_STRING);
+    this->declare_parameter("stm32.port", rclcpp::PARAMETER_INTEGER);
+    this->get_parameter("stm32.ip", stm32_ip);
+    this->get_parameter("stm32.port", stm32_port);
     //-----Timer
     tim_50hz = this->create_wall_timer(20ms, std::bind(&IOSTM32::cllbck_tim_50hz, this));
     //-----Subscriber
