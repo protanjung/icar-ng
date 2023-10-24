@@ -24,7 +24,7 @@ Routine::Routine() : Node("routine") {
 //====================================
 
 void Routine::cllbck_tim_10hz() {
-  if (!_marker.is_initialized) { _marker.init(this->shared_from_this()); }
+  if (!_marker.is_initialized()) { _marker.init(this->shared_from_this()); }
 
   process_metric();
   process_marker();

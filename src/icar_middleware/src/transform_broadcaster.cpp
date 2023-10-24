@@ -3,6 +3,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2/LinearMath/Vector3.h"
+#include "tf2_ros/static_transform_broadcaster.h"
 
 using namespace std::chrono_literals;
 
@@ -16,9 +17,10 @@ class TransformBroadcaster : public rclcpp::Node {
   std::vector<double> icar_tf_lidar_front;
   std::vector<double> icar_tf_lidar_rearright;
   //-----Timer
-  rclcpp::TimerBase::SharedPtr tim_1hz;
+  rclcpp::TimerBase::SharedPtr tim_100hz;
   //-----Transform broadcaster
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
+  std::unique_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster;
 
   TransformBroadcaster() : Node("transform_broadcaster") {
     //-----Parameter
@@ -35,9 +37,10 @@ class TransformBroadcaster : public rclcpp::Node {
     this->get_parameter("icar.tf.lidar_front", icar_tf_lidar_front);
     this->get_parameter("icar.tf.lidar_rearright", icar_tf_lidar_rearright);
     //-----Timer
-    tim_1hz = this->create_wall_timer(1s, std::bind(&TransformBroadcaster::cllbck_tim_1hz, this));
+    tim_100hz = this->create_wall_timer(10ms, std::bind(&TransformBroadcaster::cllbck_tim_100hz, this));
     //-----Transform broadcaster
     tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(this);
+    static_tf_broadcaster = std::make_unique<tf2_ros::StaticTransformBroadcaster>(this);
 
     if (transform_broadcaster_init() == false) {
       RCLCPP_ERROR(this->get_logger(), "Transform broadcaster init failed");
@@ -47,7 +50,7 @@ class TransformBroadcaster : public rclcpp::Node {
 
   //====================================
 
-  void cllbck_tim_1hz() {
+  void cllbck_tim_100hz() {
     if (transform_broadcaster_routine() == false) {
       RCLCPP_ERROR(this->get_logger(), "Transform broadcaster routine failed");
       rclcpp::shutdown();
@@ -56,18 +59,18 @@ class TransformBroadcaster : public rclcpp::Node {
 
   //====================================
 
-  bool transform_broadcaster_init() { return true; }
-
-  bool transform_broadcaster_routine() {
-    send_transform(icar_tf_rear_axle, "base_link", "rear_axle_link");
-    send_transform(icar_tf_front_axle, "base_link", "front_axle_link");
-    send_transform(icar_tf_gps, "base_link", "gps_link");
-    send_transform(icar_tf_body, "base_link", "body_link");
-    send_transform(icar_tf_lidar_front, "base_link", "lidar_front_link");
-    send_transform(icar_tf_lidar_rearright, "base_link", "lidar_rearright_link");
+  bool transform_broadcaster_init() {
+    send_static_transform(icar_tf_rear_axle, "base_link", "rear_axle_link");
+    send_static_transform(icar_tf_front_axle, "base_link", "front_axle_link");
+    send_static_transform(icar_tf_gps, "base_link", "gps_link");
+    send_static_transform(icar_tf_body, "base_link", "body_link");
+    send_static_transform(icar_tf_lidar_front, "base_link", "lidar_front_link");
+    send_static_transform(icar_tf_lidar_rearright, "base_link", "lidar_rearright_link");
 
     return true;
   }
+
+  bool transform_broadcaster_routine() { return true; }
 
   //====================================
 
@@ -96,6 +99,33 @@ class TransformBroadcaster : public rclcpp::Node {
     transform_stamped.transform.rotation.w = rotation.w();
     // ----
     tf_broadcaster->sendTransform(transform_stamped);
+  }
+
+  void send_static_transform(std::vector<double> tf, std::string frame_id, std::string child_frame_id) {
+    if (tf.size() != 6) { return; }
+
+    tf2::Vector3 origin;
+    origin.setValue(tf[0], tf[1], tf[2]);
+
+    tf2::Quaternion rotation;
+    rotation.setRPY(tf[3] * M_PI / 180, tf[4] * M_PI / 180, tf[5] * M_PI / 180);
+
+    geometry_msgs::msg::TransformStamped transform_stamped;
+    // ----
+    transform_stamped.header.stamp = this->now();
+    transform_stamped.header.frame_id = frame_id;
+    transform_stamped.child_frame_id = child_frame_id;
+    // ----
+    transform_stamped.transform.translation.x = origin.x();
+    transform_stamped.transform.translation.y = origin.y();
+    transform_stamped.transform.translation.z = origin.z();
+    // ----
+    transform_stamped.transform.rotation.x = rotation.x();
+    transform_stamped.transform.rotation.y = rotation.y();
+    transform_stamped.transform.rotation.z = rotation.z();
+    transform_stamped.transform.rotation.w = rotation.w();
+    // ----
+    static_tf_broadcaster->sendTransform(transform_stamped);
   }
 };
 

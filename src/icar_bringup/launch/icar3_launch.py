@@ -31,6 +31,13 @@ param_gps = {'gps.port': '/dev/ttyUSB0',
              'gps.baud': 115200,
              'gps.origin_lat': -7.277463,
              'gps.origin_lon': 112.797930}
+param_lslidar_c16 = {'msop_port': 2368,
+                     'difop_port': 2369,
+                     'frame_id': 'lidar_front_link',
+                     'azimuth_start': 90.0,
+                     'azimuth_stop': 270.0,
+                     'distance_min': 0.5,
+                     'distance_max': 50.0}
 
 # if 'GTK_PATH' environment variable is set, rviz2 will crash
 # to avoid this, delete the variable before launching rviz2
@@ -82,6 +89,12 @@ def generate_launch_description():
                   parameters=[param_gps],
                   respawn=True)
 
+    io_lslidar_c16 = Node(package='icar_io',
+                          executable='io_lslidar_c16',
+                          name='io_lslidar_c16',
+                          parameters=[param_lslidar_c16],
+                          respawn=True)
+
     transform_broadcaster = Node(package='icar_middleware',
                                  executable='transform_broadcaster',
                                  name='transform_broadcaster',
@@ -94,10 +107,13 @@ def generate_launch_description():
                    parameters=[param_icar],
                    respawn=True)
 
-    return LaunchDescription([rviz2,
-                              # realsense2_camera_node,
-                              # imu_filter_madgwick_node,
-                              # io_stm32,
-                              # io_gps,
-                              transform_broadcaster,
-                              routine])
+    return LaunchDescription([
+        rviz2,
+        # realsense2_camera_node,
+        # imu_filter_madgwick_node,
+        # io_stm32,
+        # io_gps,
+        io_lslidar_c16,
+        transform_broadcaster,
+        # routine
+    ])

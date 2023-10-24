@@ -9,29 +9,36 @@ list(APPEND CMAKE_MODULE_PATH "/usr/local/share/cmake/GeographicLib/")
 
 set(var_dependencies
     rclcpp
+    pcl_conversions
     std_msgs
     sensor_msgs
     geometry_msgs
     icar_interfaces
-    lwgps)
+    lwgps
+    pandu_ros2_kit)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(GeographicLib REQUIRED)
+find_package(PCL REQUIRED)
 foreach(vardependency ${var_dependencies})
   find_package(${vardependency} REQUIRED)
 endforeach()
 
-include_directories(${GeographicLib_INCLUDE_DIRS})
+include_directories(${GeographicLib_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
 
 add_executable(io_stm32 src/io_stm32.cpp)
 add_executable(io_gps src/io_gps.cpp)
+add_executable(io_lslidar_c16 src/io_lslidar_c16.cpp)
 ament_target_dependencies(io_stm32 ${var_dependencies})
 ament_target_dependencies(io_gps ${var_dependencies})
+ament_target_dependencies(io_lslidar_c16 ${var_dependencies})
 target_link_libraries(io_gps ${GeographicLib_LIBRARIES} serialport)
+target_link_libraries(io_lslidar_c16 ${PCL_LIBRARIES})
 
-install(TARGETS io_stm32 DESTINATION lib/${PROJECT_NAME})
-install(TARGETS io_gps DESTINATION lib/${PROJECT_NAME})
+install(TARGETS io_stm32 io_gps io_lslidar_c16 DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

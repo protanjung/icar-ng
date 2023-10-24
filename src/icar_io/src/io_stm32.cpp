@@ -31,9 +31,8 @@ class IOSTM32 : public rclcpp::Node {
   int socket_fd = 0;
   struct sockaddr_in socket_server_address;
   struct sockaddr_in socket_client_address;
-  rclcpp::Time socket_time;
-  uint16_t socket_tx_len;
-  uint16_t socket_rx_len;
+  socklen_t socket_server_address_len;
+  socklen_t socket_client_address_len;
   uint8_t socket_tx_buffer[1024];
   uint8_t socket_rx_buffer[1024];
 
@@ -129,7 +128,7 @@ class IOSTM32 : public rclcpp::Node {
     socket_server_address.sin_family = AF_INET;
     socket_server_address.sin_addr.s_addr = inet_addr(stm32_ip.c_str());
     socket_server_address.sin_port = htons(stm32_port);
-    socket_tx_len = sizeof(socket_server_address);
+    socket_server_address_len = sizeof(socket_server_address);
 
     return true;
   }
@@ -156,7 +155,7 @@ class IOSTM32 : public rclcpp::Node {
         12,
         MSG_DONTWAIT,
         (const struct sockaddr *)&socket_server_address,
-        (socklen_t)socket_tx_len);
+        (socklen_t)socket_server_address_len);
 
     /* The code is receiving data from the STM32 device. */
     int len_data_to_pc = recvfrom(
@@ -165,7 +164,7 @@ class IOSTM32 : public rclcpp::Node {
         1024,
         MSG_DONTWAIT,
         (struct sockaddr *)&socket_client_address,
-        (socklen_t *)&socket_rx_len);
+        (socklen_t *)&socket_client_address_len);
 
     // Communication Protocol (STM32 -> PC)
     // ====================================
