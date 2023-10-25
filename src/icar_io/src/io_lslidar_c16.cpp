@@ -5,6 +5,19 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 
+// ! This code defines a custom point type called `PointXYZIR` for a Point Cloud Library (PCL) point cloud.
+struct EIGEN_ALIGN16 PointXYZIR {
+  float x;
+  float y;
+  float z;
+  float intensity;
+  uint8_t ring;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+POINT_CLOUD_REGISTER_POINT_STRUCT(
+    PointXYZIR, (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(uint8_t, ring, ring))
+// ! This code defines a custom point type called `PointXYZIR` for a Point Cloud Library (PCL) point cloud.
+
 using namespace std::chrono_literals;
 
 class IOLSLIDARC16 : public rclcpp::Node {
@@ -20,7 +33,8 @@ class IOLSLIDARC16 : public rclcpp::Node {
   //-----Timer
   rclcpp::TimerBase::SharedPtr tim_2000hz;
   //-----Publisher
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_points_xyzi;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_points_xyz;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_points_xyzir;
 
   // Socket connection
   // =================
@@ -50,7 +64,7 @@ class IOLSLIDARC16 : public rclcpp::Node {
       0.226892802759263,
       -0.0174532925199433,
       0.261799387799149};
-
+  uint8_t ring_table[16] = {0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15};
   float azimuth_cos_table[36000];
   float azimuth_sin_table[36000];
   float elevation_cos_table[16];
@@ -73,7 +87,8 @@ class IOLSLIDARC16 : public rclcpp::Node {
     uint8_t factory[2];
   } msop_packet_t;
 
-  pcl::PointCloud<pcl::PointXYZI> points_xyzi;
+  pcl::PointCloud<pcl::PointXYZ> points_xyz;
+  pcl::PointCloud<PointXYZIR> points_xyzir;
 
   IOLSLIDARC16() : Node("io_lslidar_c16") {
     //-----Parameter
@@ -94,7 +109,8 @@ class IOLSLIDARC16 : public rclcpp::Node {
     //-----Timer
     tim_2000hz = this->create_wall_timer(0.5ms, std::bind(&IOLSLIDARC16::cllbck_tim_2000hz, this));
     //-----Publisher
-    pub_points_xyzi = this->create_publisher<sensor_msgs::msg::PointCloud2>("points_xyzi", 1);
+    pub_points_xyz = this->create_publisher<sensor_msgs::msg::PointCloud2>("points_xyz", 1);
+    pub_points_xyzir = this->create_publisher<sensor_msgs::msg::PointCloud2>("points_xyzir", 1);
 
     if (lidar_init() == false) {
       RCLCPP_ERROR(this->get_logger(), "Lidar initialization failed");
@@ -158,9 +174,12 @@ class IOLSLIDARC16 : public rclcpp::Node {
     msop_packet_t *packet = (msop_packet_t *)msop_rx_buffer;
 
     for (int i_block = 0; i_block < 12; i_block++) {
+      static const uint8_t flag[2] = {0xFF, 0xEE};
+      if (memcmp(packet->block[i_block].flag, flag, 2) != 0) { continue; }
+
+      /* This code snippet is used to calculate the azimuth angle for each block of lidar data. */
       static float last_azimuth_raw = 0;
       static float azimuth_raw = 0;
-
       last_azimuth_raw = azimuth_raw;
       azimuth_raw = (float)(*(uint16_t *)packet->block[i_block].azimuth) / 100;
 
@@ -188,6 +207,12 @@ class IOLSLIDARC16 : public rclcpp::Node {
           float distance_correct = (float)distance_raw * 0.0025;
           float intensity_correct = (float)intensity_raw / 255;
 
+          /* The line `uint8_t ring_correct = ring_table[i_data];` is assigning the value from the `ring_table`
+          array to the variable `ring_correct`. The `ring_table` array is used to map the index `i_data` to
+          the correct ring value for a lidar point. The `ring_correct` variable will hold the correct ring
+          value for each lidar point in the loop. */
+          uint8_t ring_correct = ring_table[i_data];
+
           /* This code is checking if the azimuth angle and distance values of a lidar point fall within the
           specified range. If the azimuth angle is outside the range (either less than the start angle or
           greater than the stop angle), or if the distance is outside the range (either less than the minimum
@@ -205,24 +230,32 @@ class IOLSLIDARC16 : public rclcpp::Node {
           calculating the index of the azimuth angle in the azimuth cosine and sine lookup tables. */
           uint16_t azimuth_index = (uint16_t)(azimuth_correct * 100) % 36000;
 
-          pcl::PointXYZI point_xyzi;
-          point_xyzi.x = distance_correct * azimuth_cos_table[azimuth_index] * elevation_cos_table[i_data];
-          point_xyzi.y = distance_correct * azimuth_sin_table[azimuth_index] * elevation_cos_table[i_data];
-          point_xyzi.z = distance_correct * elevation_sin_table[i_data];
-          point_xyzi.intensity = intensity_correct;
-          points_xyzi.push_back(point_xyzi);
+          pcl::PointXYZ point_xyz;
+          PointXYZIR point_xyzir;
+          point_xyz.x = point_xyzir.x =
+              distance_correct * azimuth_cos_table[azimuth_index] * elevation_cos_table[i_data];
+          point_xyz.y = point_xyzir.y =
+              distance_correct * azimuth_sin_table[azimuth_index] * elevation_cos_table[i_data];
+          point_xyz.z = point_xyzir.z = distance_correct * elevation_sin_table[i_data];
+          point_xyzir.intensity = intensity_correct;
+          point_xyzir.ring = ring_correct;
+          points_xyz.push_back(point_xyz);
+          points_xyzir.push_back(point_xyzir);
         }
       }
 
       if (azimuth_raw < last_azimuth_raw) {
-        sensor_msgs::msg::PointCloud2 msg_points_xyzi;
-        pcl::toROSMsg(points_xyzi, msg_points_xyzi);
-        msg_points_xyzi.header.frame_id = frame_id;
-        msg_points_xyzi.header.stamp = this->now();
-        msg_points_xyzi.is_dense = false;
-        pub_points_xyzi->publish(msg_points_xyzi);
+        sensor_msgs::msg::PointCloud2 msg_points_xyz;
+        sensor_msgs::msg::PointCloud2 msg_points_xyzir;
+        pcl::toROSMsg(points_xyz, msg_points_xyz);
+        pcl::toROSMsg(points_xyzir, msg_points_xyzir);
+        msg_points_xyz.header.frame_id = msg_points_xyzir.header.frame_id = frame_id;
+        msg_points_xyz.header.stamp = msg_points_xyzir.header.stamp = this->now();
+        pub_points_xyz->publish(msg_points_xyz);
+        pub_points_xyzir->publish(msg_points_xyzir);
 
-        points_xyzi.clear();
+        points_xyz.clear();
+        points_xyzir.clear();
       }
     }
 

@@ -93,6 +93,8 @@ def generate_launch_description():
                           executable='io_lslidar_c16',
                           name='io_lslidar_c16',
                           parameters=[param_lslidar_c16],
+                          remappings=[('/points_xyz', '/lidar_front/points_xyz'),
+                                      ('/points_xyzir', '/lidar_front/points_xyzir')],
                           respawn=True)
 
     transform_broadcaster = Node(package='icar_middleware',
@@ -115,5 +117,5 @@ def generate_launch_description():
         # io_gps,
         io_lslidar_c16,
         transform_broadcaster,
-        # routine
+        routine
     ])
