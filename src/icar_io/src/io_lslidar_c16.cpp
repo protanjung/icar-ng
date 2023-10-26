@@ -38,10 +38,10 @@ class IOLSLIDARC16 : public rclcpp::Node {
 
   // Socket connection
   // =================
-  UDP udp_msop;
-  UDP udp_difop;
+  UDP msop_udp;
   uint8_t msop_tx_buffer[2048];
   uint8_t msop_rx_buffer[2048];
+  UDP difop_udp;
   uint8_t difop_tx_buffer[2048];
   uint8_t difop_rx_buffer[2048];
 
@@ -138,13 +138,13 @@ class IOLSLIDARC16 : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(), "Distance Min: %f", distance_min);
     RCLCPP_INFO(this->get_logger(), "Distance Max: %f", distance_max);
 
-    if (udp_msop.init_as_server(msop_port) == false) {
-      RCLCPP_ERROR(this->get_logger(), "MSOP init failed");
+    if (msop_udp.init_as_server(msop_port) == false) {
+      RCLCPP_ERROR(this->get_logger(), "MSOP UDP init failed");
       return false;
     }
 
-    if (udp_difop.init_as_server(difop_port) == false) {
-      RCLCPP_ERROR(this->get_logger(), "DIFOP init failed");
+    if (difop_udp.init_as_server(difop_port) == false) {
+      RCLCPP_ERROR(this->get_logger(), "DIFOP UDP init failed");
       return false;
     }
 
@@ -162,8 +162,8 @@ class IOLSLIDARC16 : public rclcpp::Node {
   }
 
   bool lidar_routine() {
-    if (udp_msop.recv(msop_rx_buffer, 1206) == 1206) { parse_msop(); }
-    if (udp_difop.recv(difop_rx_buffer, 1206) == 1206) { parse_difop(); }
+    if (msop_udp.recv(msop_rx_buffer, 1206) == 1206) { parse_msop(); }
+    if (difop_udp.recv(difop_rx_buffer, 1206) == 1206) { parse_difop(); }
 
     return true;
   }

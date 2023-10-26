@@ -16,7 +16,7 @@ param_icar = {'icar.tf.rear_axle': [0.00, 0.00, 0.30, 0.00, 0.00, 0.00],
               'icar.tf.front_axle': [2.30, 0.00, 0.30, 0.00, 0.00, 0.00],
               'icar.tf.body': [1.15, 0.00, 1.18, 0.00, 0.00, 0.00],
               'icar.tf.gps': [2.30, 0.00, 2.05, 0.00, 0.00, 0.00],
-              'icar.tf.lidar_front': [2.95, 0.00, 0.70, 0.00, -8.00, 179.00],
+              'icar.tf.lidar_front': [2.95, 0.00, 0.70, 0.50, -8.00, 179.00],
               'icar.tf.lidar_rearright': [-0.61, -0.81, 0.70, 0.00, 0.00, -131.00],
               'icar.tyre.width': 185,
               'icar.tyre.aspect_ratio': 60,
@@ -27,7 +27,7 @@ param_icar = {'icar.tf.rear_axle': [0.00, 0.00, 0.30, 0.00, 0.00, 0.00],
               'icar.wheelbase': 2.30}
 param_stm32 = {'stm32.ip': '192.168.50.2',
                'stm32.port': 9798}
-param_gps = {'gps.port': '/dev/ttyUSB0',
+param_gps = {'gps.port': '/dev/serial/by-id/usb-u-blox_AG_-_www.u-blox.com_u-blox_GNSS_receiver-if00',
              'gps.baud': 115200,
              'gps.origin_lat': -7.277463,
              'gps.origin_lon': 112.797930}
@@ -110,9 +110,9 @@ def generate_launch_description():
                    respawn=True)
 
     return LaunchDescription([
-        rviz2,
-        # realsense2_camera_node,
-        # imu_filter_madgwick_node,
+        # rviz2,
+        realsense2_camera_node,
+        imu_filter_madgwick_node,
         # io_stm32,
         # io_gps,
         io_lslidar_c16,

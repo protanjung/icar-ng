@@ -10,9 +10,6 @@ list(APPEND CMAKE_MODULE_PATH "/usr/local/share/cmake/GeographicLib/")
 set(var_dependencies
     rclcpp
     pcl_conversions
-    std_msgs
-    sensor_msgs
-    geometry_msgs
     icar_interfaces
     lwgps
     pandu_ros2_kit)
@@ -21,8 +18,8 @@ set(var_dependencies
 find_package(ament_cmake REQUIRED)
 find_package(GeographicLib REQUIRED)
 find_package(PCL REQUIRED)
-foreach(vardependency ${var_dependencies})
-  find_package(${vardependency} REQUIRED)
+foreach(dependency ${var_dependencies})
+  find_package(${dependency} REQUIRED)
 endforeach()
 
 include_directories(${GeographicLib_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})

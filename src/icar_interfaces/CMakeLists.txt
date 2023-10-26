@@ -5,14 +5,28 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+set(var_dependencies std_msgs sensor_msgs geometry_msgs)
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+foreach(dependency ${var_dependencies})
+  find_package(${dependency} REQUIRED)
+endforeach()
 
-set(msg_files msg/Dummy.msg)
+set(msg_files
+    msg/Dummy.msg
+    msg/Stm32FromPc.msg
+    msg/Stm32ToPc.msg
+    msg/GpsToPc.msg)
 set(srv_files srv/Dummy.srv)
-rosidl_generate_interfaces(${PROJECT_NAME} ${msg_files} ${srv_files})
-ament_export_dependencies(rosidl_default_runtime)
+rosidl_generate_interfaces(
+  ${PROJECT_NAME}
+  ${msg_files}
+  ${srv_files}
+  DEPENDENCIES
+  ${var_dependencies})
+ament_export_dependencies(rosidl_default_runtime ${var_dependencies})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

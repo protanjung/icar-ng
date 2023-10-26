@@ -10,9 +10,9 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>
-  <depend>std_msgs</depend>
-  <depend>geometry_msgs</depend>
   <depend>icar_interfaces</depend>
   <depend>pandu_ros2_kit</depend>
 

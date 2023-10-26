@@ -1,0 +1,6 @@
+uint16[] remote_control
+uint16 encoder_kiri
+uint16 encoder_kanan
+float32 gyroscope
+int16 throttle_position
+int16 steering_position

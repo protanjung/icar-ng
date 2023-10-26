@@ -1,0 +1,2 @@
+sensor_msgs/NavSatFix navsatfix
+geometry_msgs/Pose2D pose2d

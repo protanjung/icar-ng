@@ -7,16 +7,16 @@ endif()
 
 set(var_dependencies
     rclcpp
+    tf2
+    tf2_ros
     tf2_geometry_msgs
-    std_msgs
-    geometry_msgs
     icar_interfaces
     pandu_ros2_kit)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-foreach(vardependency ${var_dependencies})
-  find_package(${vardependency} REQUIRED)
+foreach(dependency ${var_dependencies})
+  find_package(${dependency} REQUIRED)
 endforeach()
 
 include_directories(include)

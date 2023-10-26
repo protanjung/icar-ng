@@ -1,9 +1,8 @@
 #include "GeographicLib/UTMUPS.hpp"
-#include "geometry_msgs/msg/pose2_d.hpp"
+#include "icar_interfaces/msg/gps_to_pc.hpp"
 #include "libserialport.h"
 #include "lwgps/lwgps.h"
 #include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/nav_sat_fix.hpp"
 
 using namespace std::chrono_literals;
 using namespace GeographicLib;
@@ -18,13 +17,11 @@ class IOGPS : public rclcpp::Node {
   //-----Timer
   rclcpp::TimerBase::SharedPtr tim_100hz;
   //-----Publisher
-  rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr pub_gps_navsatfix;
-  rclcpp::Publisher<geometry_msgs::msg::Pose2D>::SharedPtr pub_gps_pose2d;
+  rclcpp::Publisher<icar_interfaces::msg::GpsToPc>::SharedPtr pub_gps_to_pc;
 
   // Serial connection
   // =================
   struct sp_port *serial_port;
-  rclcpp::Time serial_time;
   uint16_t serial_tx_len;
   uint16_t serial_rx_len;
   uint8_t serial_tx_buffer[1024];
@@ -61,8 +58,7 @@ class IOGPS : public rclcpp::Node {
     //-----Timer
     tim_100hz = this->create_wall_timer(10ms, std::bind(&IOGPS::cllbck_tim_100hz, this));
     //-----Publisher
-    pub_gps_navsatfix = this->create_publisher<sensor_msgs::msg::NavSatFix>("gps/navsatfix", 10);
-    pub_gps_pose2d = this->create_publisher<geometry_msgs::msg::Pose2D>("gps/pose2d", 10);
+    pub_gps_to_pc = this->create_publisher<icar_interfaces::msg::GpsToPc>("gps/to_pc", 10);
 
     if (gps_init() == false) {
       RCLCPP_ERROR(this->get_logger(), "GPS initialization failed");
@@ -135,46 +131,41 @@ class IOGPS : public rclcpp::Node {
       gps_return += lwgps_process(&gps, &serial_data, 1);
     }
     if (serial_return < 0) {
-      RCLCPP_ERROR(this->get_logger(), "Serial port read failed");
+      // RCLCPP_ERROR(this->get_logger(), "Serial port read failed");
       return false;
     }
     if (gps_return < 1) {
-      RCLCPP_ERROR(this->get_logger(), "GPS process failed");
+      // RCLCPP_ERROR(this->get_logger(), "GPS process failed");
       return true;
     }
 
-    static sensor_msgs::msg::NavSatFix msg_gps_navsatfix;
+    static icar_interfaces::msg::GpsToPc msg_gps_to_pc;
     // ----
-    msg_gps_navsatfix.header.stamp = this->now();
-    msg_gps_navsatfix.header.frame_id = "gps_link";
+    msg_gps_to_pc.navsatfix.header.stamp = this->now();
+    msg_gps_to_pc.navsatfix.header.frame_id = "gps_link";
     // ----
-    msg_gps_navsatfix.status.status = gps.fix == 0 || gps.fix_mode == 1 ? sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX
-                                                                        : sensor_msgs::msg::NavSatStatus::STATUS_FIX;
-    msg_gps_navsatfix.status.service =
+    msg_gps_to_pc.navsatfix.status.status = gps.fix == 0 || gps.fix_mode == 1
+                                                ? sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX
+                                                : sensor_msgs::msg::NavSatStatus::STATUS_FIX;
+    // ----
+    msg_gps_to_pc.navsatfix.status.service =
         sensor_msgs::msg::NavSatStatus::SERVICE_GPS | sensor_msgs::msg::NavSatStatus::SERVICE_GLONASS |
         sensor_msgs::msg::NavSatStatus::SERVICE_COMPASS | sensor_msgs::msg::NavSatStatus::SERVICE_GALILEO;
     // ----
-    msg_gps_navsatfix.latitude = gps.latitude;
-    msg_gps_navsatfix.longitude = gps.longitude;
-    msg_gps_navsatfix.altitude = gps.altitude;
+    msg_gps_to_pc.navsatfix.latitude = gps.latitude;
+    msg_gps_to_pc.navsatfix.longitude = gps.longitude;
+    msg_gps_to_pc.navsatfix.altitude = gps.altitude;
     // ----
-    msg_gps_navsatfix.position_covariance[0] = gps.dop_h * gps.dop_h;
-    msg_gps_navsatfix.position_covariance[4] = gps.dop_h * gps.dop_h;
-    msg_gps_navsatfix.position_covariance[8] = gps.dop_v * gps.dop_v;
-    msg_gps_navsatfix.position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
+    msg_gps_to_pc.navsatfix.position_covariance[0] = gps.dop_h * gps.dop_h;
+    msg_gps_to_pc.navsatfix.position_covariance[4] = gps.dop_h * gps.dop_h;
+    msg_gps_to_pc.navsatfix.position_covariance[8] = gps.dop_v * gps.dop_v;
+    msg_gps_to_pc.navsatfix.position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
     // ----
-    pub_gps_navsatfix->publish(msg_gps_navsatfix);
-
-    static geometry_msgs::msg::Pose2D msg_gps_pose2d;
+    msg_gps_to_pc.pose2d.x = gps_pose_x - gps_origin_x;
+    msg_gps_to_pc.pose2d.y = gps_pose_y - gps_origin_y;
+    msg_gps_to_pc.pose2d.theta = gps.speed > 4.82 * 0.539957 ? (90 - gps.course) * M_PI / 180 : 0;
     // ----
-    msg_gps_pose2d.x = gps_pose_x - gps_origin_x;
-    msg_gps_pose2d.y = gps_pose_y - gps_origin_y;
-    // ----
-    /* 4.82km/h is average human walking speed, we use it as a threshold to determine whether the GPS is moving or not.
-    Course value from lwgps is equal to 0deg when moving north, so we need to convert it to 0deg when moving east. */
-    if (gps.speed > 4.82 * 0.539957) { msg_gps_pose2d.theta = (90 - gps.course) * M_PI / 180; }
-    // ----
-    pub_gps_pose2d->publish(msg_gps_pose2d);
+    pub_gps_to_pc->publish(msg_gps_to_pc);
 
     return true;
   }

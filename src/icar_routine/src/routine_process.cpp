@@ -14,7 +14,7 @@ void Routine::process_marker() {
         "body",
         1,
         p,
-        quaternion_from_rpy(0, 0, 0),
+        rpy_to_quaternion(0, 0, 0),
         std::vector<float>{1.0, 1.0, 1.0, 0.5},
         icar_body_length,
         icar_body_width,
@@ -26,7 +26,7 @@ void Routine::process_marker() {
         "tyre",
         1,
         p,
-        quaternion_from_rpy(M_PI_2, 0, 0),
+        rpy_to_quaternion(M_PI_2, 0, 0),
         std::vector<float>{0.0, 0.0, 0.0, 0.5},
         tyre_diameter,
         tyre_diameter,
@@ -36,7 +36,7 @@ void Routine::process_marker() {
         "tyre",
         2,
         p,
-        quaternion_from_rpy(M_PI_2, 0, 0),
+        rpy_to_quaternion(M_PI_2, 0, 0),
         std::vector<float>{0.0, 0.0, 0.0, 0.5},
         tyre_diameter,
         tyre_diameter,
@@ -48,7 +48,7 @@ void Routine::process_marker() {
         "tyre",
         3,
         p,
-        quaternion_from_rpy(M_PI_2, 0, 0),
+        rpy_to_quaternion(M_PI_2, 0, 0),
         std::vector<float>{0.0, 0.0, 0.0, 0.5},
         tyre_diameter,
         tyre_diameter,
@@ -58,7 +58,7 @@ void Routine::process_marker() {
         "tyre",
         4,
         p,
-        quaternion_from_rpy(M_PI_2, 0, 0),
+        rpy_to_quaternion(M_PI_2, 0, 0),
         std::vector<float>{0.0, 0.0, 0.0, 0.5},
         tyre_diameter,
         tyre_diameter,
@@ -68,11 +68,12 @@ void Routine::process_marker() {
 
 //====================================
 
-geometry_msgs::msg::Quaternion Routine::quaternion_from_rpy(float roll, float pitch, float yaw) {
+geometry_msgs::msg::Quaternion Routine::rpy_to_quaternion(float roll, float pitch, float yaw) {
   tf2::Quaternion q_in;
   geometry_msgs::msg::Quaternion q_out;
 
   q_in.setRPY(roll, pitch, yaw);
   tf2::convert(q_in, q_out);
+
   return q_out;
 }

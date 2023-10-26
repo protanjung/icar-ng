@@ -9,8 +9,8 @@ set(var_dependencies rclcpp tf2 tf2_ros)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-foreach(vardependency ${var_dependencies})
-  find_package(${vardependency} REQUIRED)
+foreach(dependency ${var_dependencies})
+  find_package(${dependency} REQUIRED)
 endforeach()
 
 add_executable(transform_broadcaster src/transform_broadcaster.cpp)
