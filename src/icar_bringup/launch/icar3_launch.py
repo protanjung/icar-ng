@@ -24,20 +24,9 @@ param_icar = {'icar.tf.rear_axle': [0.00, 0.00, 0.30, 0.00, 0.00, 0.00],
               'icar.body.length': 3.50,
               'icar.body.width': 1.50,
               'icar.body.height': 1.75,
-              'icar.wheelbase': 2.30}
-param_stm32 = {'stm32.ip': '192.168.50.2',
-               'stm32.port': 9798}
-param_gps = {'gps.port': '/dev/serial/by-id/usb-u-blox_AG_-_www.u-blox.com_u-blox_GNSS_receiver-if00',
-             'gps.baud': 115200,
-             'gps.origin_lat': -7.277463,
-             'gps.origin_lon': 112.797930}
-param_lslidar_c16 = {'msop_port': 2368,
-                     'difop_port': 2369,
-                     'frame_id': 'lidar_front_link',
-                     'azimuth_start': 90.0,
-                     'azimuth_stop': 270.0,
-                     'distance_min': 0.5,
-                     'distance_max': 50.0}
+              'icar.wheelbase': 2.30,
+              'icar.conversion.encoder_pulse_to_meter': 0.000455,
+              'icar.conversion.steering_pulse_to_radian': -0.000249}
 
 # if 'GTK_PATH' environment variable is set, rviz2 will crash
 # to avoid this, delete the variable before launching rviz2
@@ -58,56 +47,88 @@ def generate_launch_description():
                  name='rviz2',
                  arguments=['-d', PathJoinSubstitution([icar_ng_data_path, 'rviz', 'icar3.rviz'])])
 
-    realsense2_camera_node = Node(package='realsense2_camera',
-                                  executable='realsense2_camera_node',
-                                  name='realsense2_camera_node',
-                                  parameters=[{'enable_accel': True,
-                                               'enable_gyro': True,
-                                               'unite_imu_method': 2,
-                                               'align_depth.enable': True,
-                                               'initial_reset': True}],
-                                  remappings=[('/imu', '/imu_raw')],
-                                  respawn=True)
+    realsense2_camera_node = Node(
+        package='realsense2_camera',
+        executable='realsense2_camera_node',
+        name='realsense2_camera_node',
+        respawn=True,
+        parameters=[{'enable_accel': True,
+                     'enable_gyro': True,
+                     'unite_imu_method': 2,
+                     'align_depth.enable': True,
+                     'initial_reset': True}],
+        remappings=[('/imu', '/imu_raw')])
 
-    imu_filter_madgwick_node = Node(package='imu_filter_madgwick',
-                                    executable='imu_filter_madgwick_node',
-                                    name='imu_filter_madgwick_node',
-                                    parameters=[{'use_mag': False}],
-                                    remappings=[('/imu/data_raw', '/imu_raw'),
-                                                ('/imu/data', '/imu_filtered')],
-                                    respawn=True)
+    imu_filter_madgwick_node = Node(
+        package='imu_filter_madgwick',
+        executable='imu_filter_madgwick_node',
+        name='imu_filter_madgwick_node',
+        respawn=True,
+        parameters=[{'use_mag': False}],
+        remappings=[('/imu/data_raw', '/imu_raw'),
+                    ('/imu/data', '/imu_filtered')])
 
-    io_stm32 = Node(package='icar_io',
-                    executable='io_stm32',
-                    name='io_stm32',
-                    parameters=[param_stm32],
-                    respawn=True)
+    io_stm32 = Node(
+        package='icar_io',
+        executable='io_stm32',
+        name='io_stm32',
+        respawn=True,
+        parameters=[{'stm32.ip': '192.168.50.2',
+                     'stm32.port': 9798}])
 
-    io_gps = Node(package='icar_io',
-                  executable='io_gps',
-                  name='io_gps',
-                  parameters=[param_gps],
-                  respawn=True)
+    io_gps = Node(
+        package='icar_io',
+        executable='io_gps',
+        name='io_gps',
+        respawn=True,
+        parameters=[{'gps.port': '/dev/serial/by-id/usb-u-blox_AG_-_www.u-blox.com_u-blox_GNSS_receiver-if00',
+                     'gps.baud': 115200,
+                     'gps.origin_lat': -7.277463,
+                     'gps.origin_lon': 112.797930}])
 
-    io_lslidar_c16 = Node(package='icar_io',
-                          executable='io_lslidar_c16',
-                          name='io_lslidar_c16',
-                          parameters=[param_lslidar_c16],
-                          remappings=[('/points_xyz', '/lidar_front/points_xyz'),
-                                      ('/points_xyzir', '/lidar_front/points_xyzir')],
-                          respawn=True)
+    io_lslidar_c16 = Node(
+        package='icar_io',
+        executable='io_lslidar_c16',
+        name='io_lslidar_c16',
+        respawn=True,
+        parameters=[{'msop_port': 2368,
+                     'difop_port': 2369,
+                     'frame_id': 'lidar_front_link',
+                     'azimuth_start': 90.0,
+                     'azimuth_stop': 270.0,
+                     'distance_min': 0.0,
+                     'distance_max': 50.0}],
+        remappings=[('/points_xyz', '/lidar_front/points_xyz'),
+                    ('/points_xyzir', '/lidar_front/points_xyzir')])
 
-    transform_broadcaster = Node(package='icar_middleware',
-                                 executable='transform_broadcaster',
-                                 name='transform_broadcaster',
-                                 parameters=[param_icar],
-                                 respawn=True)
+    io_lslidar_n301 = Node(
+        package='icar_io',
+        executable='io_lslidar_n301',
+        name='io_lslidar_n301',
+        respawn=True,
+        parameters=[{'msop_port': 2370,
+                     'difop_port': 2371,
+                     'frame_id': 'lidar_rearright_link',
+                     'azimuth_start': 0.0,
+                     'azimuth_stop': 360.0,
+                     'distance_min': 0.0,
+                     'distance_max': 50.0}],
+        remappings=[('/points_xyz', '/lidar_rearright/points_xyz'),
+                    ('/points_xyzi', '/lidar_rearright/points_xyzi')])
 
-    routine = Node(package='icar_routine',
-                   executable='routine',
-                   name='routine',
-                   parameters=[param_icar],
-                   respawn=True)
+    transform_broadcaster = Node(
+        package='icar_middleware',
+        executable='transform_broadcaster',
+        name='transform_broadcaster',
+        respawn=True,
+        parameters=[param_icar])
+
+    routine = Node(
+        package='icar_routine',
+        executable='routine',
+        name='routine',
+        respawn=True,
+        parameters=[param_icar])
 
     return LaunchDescription([
         # rviz2,
@@ -116,6 +137,7 @@ def generate_launch_description():
         # io_stm32,
         # io_gps,
         io_lslidar_c16,
+        io_lslidar_n301,
         transform_broadcaster,
         routine
     ])

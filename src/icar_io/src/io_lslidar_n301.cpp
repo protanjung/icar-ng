@@ -5,22 +5,9 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 
-// ! This code defines a custom point type called `PointXYZIR` for a Point Cloud Library (PCL) point cloud.
-struct EIGEN_ALIGN16 PointXYZIR {
-  float x;
-  float y;
-  float z;
-  float intensity;
-  uint8_t ring;
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-};
-POINT_CLOUD_REGISTER_POINT_STRUCT(
-    PointXYZIR, (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(uint8_t, ring, ring))
-// ! This code defines a custom point type called `PointXYZIR` for a Point Cloud Library (PCL) point cloud.
-
 using namespace std::chrono_literals;
 
-class IOLSLIDARC16 : public rclcpp::Node {
+class IOLSLIDARN301 : public rclcpp::Node {
  public:
   //-----Parameter
   int msop_port;
@@ -34,7 +21,7 @@ class IOLSLIDARC16 : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr tim_2000hz;
   //-----Publisher
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_points_xyz;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_points_xyzir;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_points_xyzi;
 
   // Socket connection
   // =================
@@ -45,41 +32,10 @@ class IOLSLIDARC16 : public rclcpp::Node {
   uint8_t difop_tx_buffer[2048];
   uint8_t difop_rx_buffer[2048];
 
-  // Lookup tables
-  // =============
-  /* The `elevation_table` is an array of 16 floating-point values. Each value represents the elevation
-  angle of a specific laser beam in the lidar sensor. Lidar sensors emit laser beams at different
-  angles to capture the surrounding environment. The elevation angle determines the vertical position
-  of the laser beam. */
-  float elevation_table[16] = {
-      -0.261799387799149,
-      0.0174532925199433,
-      -0.226892802759263,
-      0.0523598775598299,
-      -0.191986217719376,
-      0.0872664625997165,
-      -0.15707963267949,
-      0.122173047639603,
-      -0.122173047639603,
-      0.15707963267949,
-      -0.0872664625997165,
-      0.191986217719376,
-      -0.0523598775598299,
-      0.226892802759263,
-      -0.0174532925199433,
-      0.261799387799149};
-  /* The `ring_table` is an array that maps the index of a lidar point to its corresponding ring value.
-  Each lidar point in the data packet has a ring value that represents the vertical position of the
-  laser beam. The `ring_table` is used to assign the correct ring value to each lidar point based on
-  its index. */
-  uint8_t ring_table[16] = {0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15};
-
   // Lidar data
   // ==========
   float azimuth_cos_table[36000];
   float azimuth_sin_table[36000];
-  float elevation_cos_table[16];
-  float elevation_sin_table[16];
 
   typedef struct {
     uint8_t distance[2];
@@ -99,9 +55,9 @@ class IOLSLIDARC16 : public rclcpp::Node {
   } msop_packet_t;
 
   pcl::PointCloud<pcl::PointXYZ> points_xyz;
-  pcl::PointCloud<PointXYZIR> points_xyzir;
+  pcl::PointCloud<pcl::PointXYZI> points_xyzi;
 
-  IOLSLIDARC16() : Node("io_lslidar_c16") {
+  IOLSLIDARN301() : Node("io_lslidar_n301") {
     //-----Parameter
     this->declare_parameter("msop_port", rclcpp::PARAMETER_INTEGER);
     this->declare_parameter("difop_port", rclcpp::PARAMETER_INTEGER);
@@ -118,10 +74,10 @@ class IOLSLIDARC16 : public rclcpp::Node {
     this->get_parameter("distance_min", distance_min);
     this->get_parameter("distance_max", distance_max);
     //-----Timer
-    tim_2000hz = this->create_wall_timer(0.5ms, std::bind(&IOLSLIDARC16::cllbck_tim_2000hz, this));
+    tim_2000hz = this->create_wall_timer(0.5ms, std::bind(&IOLSLIDARN301::cllbck_tim_2000hz, this));
     //-----Publisher
     pub_points_xyz = this->create_publisher<sensor_msgs::msg::PointCloud2>("points_xyz", 1);
-    pub_points_xyzir = this->create_publisher<sensor_msgs::msg::PointCloud2>("points_xyzir", 1);
+    pub_points_xyzi = this->create_publisher<sensor_msgs::msg::PointCloud2>("points_xyzi", 1);
 
     if (lidar_init() == false) {
       RCLCPP_ERROR(this->get_logger(), "Lidar initialization failed");
@@ -164,11 +120,6 @@ class IOLSLIDARC16 : public rclcpp::Node {
       azimuth_sin_table[i] = sin(i * M_PI / 18000);
     }
 
-    for (int i = 0; i < 16; i++) {
-      elevation_cos_table[i] = cos(elevation_table[i]);
-      elevation_sin_table[i] = sin(elevation_table[i]);
-    }
-
     return true;
   }
 
@@ -207,23 +158,17 @@ class IOLSLIDARC16 : public rclcpp::Node {
       }
 
       for (int i_laser = 0; i_laser < 2; i_laser++) {
-        for (int i_data = 0; i_data < 16; i_data++) {
+        for (int i_data = 0; i_data < 15; i_data++) {
           /* The line of code is calculating the corrected azimuth angle for each laser point in the lidar data. */
-          float azimuth_correct = azimuth_raw + (azimuth_difference / 32) * (i_laser * 16 + i_data);
+          float azimuth_correct = azimuth_raw + (azimuth_difference / 30) * (i_laser * 15 + i_data);
           azimuth_correct = azimuth_correct > 360 ? azimuth_correct - 360 : azimuth_correct;
 
           /* This code is extracting the raw distance and intensity values from the lidar data packet and then
           converting them to correct values. */
           uint16_t distance_raw = *(uint16_t *)packet->block[i_block].data[i_laser * 16 + i_data].distance;
           uint8_t intensity_raw = packet->block[i_block].data[i_laser * 16 + i_data].intensity;
-          float distance_correct = (float)distance_raw * 0.0025;
+          float distance_correct = (float)distance_raw * 0.002;
           float intensity_correct = (float)intensity_raw / 255;
-
-          /* The line `uint8_t ring_correct = ring_table[i_data];` is assigning the value from the `ring_table`
-          array to the variable `ring_correct`. The `ring_table` array is used to map the index `i_data` to
-          the correct ring value for a lidar point. The `ring_correct` variable will hold the correct ring
-          value for each lidar point in the loop. */
-          uint8_t ring_correct = ring_table[i_data];
 
           /* This code is checking if the azimuth angle and distance values of a lidar point fall within the
           specified range. If the azimuth angle is outside the range (either less than the start angle or
@@ -243,31 +188,28 @@ class IOLSLIDARC16 : public rclcpp::Node {
           uint16_t azimuth_index = (uint16_t)(azimuth_correct * 100) % 36000;
 
           pcl::PointXYZ point_xyz;
-          PointXYZIR point_xyzir;
-          point_xyz.x = point_xyzir.x =
-              distance_correct * azimuth_cos_table[azimuth_index] * elevation_cos_table[i_data];
-          point_xyz.y = point_xyzir.y =
-              distance_correct * azimuth_sin_table[azimuth_index] * elevation_cos_table[i_data];
-          point_xyz.z = point_xyzir.z = distance_correct * elevation_sin_table[i_data];
-          point_xyzir.intensity = intensity_correct;
-          point_xyzir.ring = ring_correct;
+          pcl::PointXYZI point_xyzi;
+          point_xyz.x = point_xyzi.x = distance_correct * azimuth_cos_table[azimuth_index];
+          point_xyz.y = point_xyzi.y = distance_correct * azimuth_sin_table[azimuth_index];
+          point_xyz.z = point_xyzi.z = 0;
+          point_xyzi.intensity = intensity_correct;
           points_xyz.push_back(point_xyz);
-          points_xyzir.push_back(point_xyzir);
+          points_xyzi.push_back(point_xyzi);
         }
       }
 
       if (azimuth_raw < last_azimuth_raw) {
         sensor_msgs::msg::PointCloud2 msg_points_xyz;
-        sensor_msgs::msg::PointCloud2 msg_points_xyzir;
+        sensor_msgs::msg::PointCloud2 msg_points_xyzi;
         pcl::toROSMsg(points_xyz, msg_points_xyz);
-        pcl::toROSMsg(points_xyzir, msg_points_xyzir);
-        msg_points_xyz.header.frame_id = msg_points_xyzir.header.frame_id = frame_id;
-        msg_points_xyz.header.stamp = msg_points_xyzir.header.stamp = this->now();
+        pcl::toROSMsg(points_xyzi, msg_points_xyzi);
+        msg_points_xyz.header.frame_id = msg_points_xyzi.header.frame_id = frame_id;
+        msg_points_xyz.header.stamp = msg_points_xyzi.header.stamp = this->now();
         pub_points_xyz->publish(msg_points_xyz);
-        pub_points_xyzir->publish(msg_points_xyzir);
+        pub_points_xyzi->publish(msg_points_xyzi);
 
         points_xyz.clear();
-        points_xyzir.clear();
+        points_xyzi.clear();
       }
     }
 
@@ -287,10 +229,10 @@ class IOLSLIDARC16 : public rclcpp::Node {
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
 
-  auto node_io_lslidar_c16 = std::make_shared<IOLSLIDARC16>();
+  auto node_io_lslidar_n301 = std::make_shared<IOLSLIDARN301>();
 
   rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node_io_lslidar_c16);
+  executor.add_node(node_io_lslidar_n301);
   executor.spin();
 
   rclcpp::shutdown();
