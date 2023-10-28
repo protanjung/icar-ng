@@ -1,5 +1,6 @@
 #include "tf2_ros/transform_broadcaster.h"
 
+#include "icar_interfaces/msg/pose.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2/LinearMath/Transform.h"
@@ -19,6 +20,8 @@ class TransformBroadcaster : public rclcpp::Node {
   std::vector<double> icar_tf_lidar_rearright;
   //-----Timer
   rclcpp::TimerBase::SharedPtr tim_100hz;
+  //-----Subscriber
+  rclcpp::Subscription<icar_interfaces::msg::Pose>::SharedPtr sub_pose;
   //-----Transform broadcaster
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster;
   std::unique_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster;
@@ -39,6 +42,9 @@ class TransformBroadcaster : public rclcpp::Node {
     this->get_parameter("icar.tf.lidar_rearright", icar_tf_lidar_rearright);
     //-----Timer
     tim_100hz = this->create_wall_timer(10ms, std::bind(&TransformBroadcaster::cllbck_tim_100hz, this));
+    //-----Subscriber
+    sub_pose = this->create_subscription<icar_interfaces::msg::Pose>(
+        "pose", 10, std::bind(&TransformBroadcaster::cllbck_sub_pose, this, std::placeholders::_1));
     //-----Transform broadcaster
     tf_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(this);
     static_tf_broadcaster = std::make_unique<tf2_ros::StaticTransformBroadcaster>(this);
@@ -56,6 +62,13 @@ class TransformBroadcaster : public rclcpp::Node {
       RCLCPP_ERROR(this->get_logger(), "Transform broadcaster routine failed");
       rclcpp::shutdown();
     }
+  }
+
+  //====================================
+
+  void cllbck_sub_pose(const icar_interfaces::msg::Pose::SharedPtr msg) {
+    send_transform(
+        std::vector<double>{msg->pose.x, msg->pose.y, 0, 0, 0, msg->pose.theta * 180 / M_PI}, "map", "base_link");
   }
 
   //====================================

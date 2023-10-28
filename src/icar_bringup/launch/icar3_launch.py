@@ -26,7 +26,9 @@ param_icar = {'icar.tf.rear_axle': [0.00, 0.00, 0.30, 0.00, 0.00, 0.00],
               'icar.body.height': 1.75,
               'icar.wheelbase': 2.30,
               'icar.conversion.encoder_pulse_to_meter': 0.000455,
-              'icar.conversion.steering_pulse_to_radian': -0.000249}
+              'icar.conversion.steering_pulse_to_radian': -0.000249,
+              'icar.cf.alpha_xy': 0.999,
+              'icar.cf.alpha_theta': 0.999}
 
 # if 'GTK_PATH' environment variable is set, rviz2 will crash
 # to avoid this, delete the variable before launching rviz2
@@ -42,6 +44,10 @@ icar_ng_data_path = os.path.join(os.environ['HOME'], 'icar-ng-data')
 
 
 def generate_launch_description():
+    rosbag = ExecuteProcess(
+        cmd=['ros2', 'bag', 'play', PathJoinSubstitution([icar_ng_data_path, 'bag', 'rosbag2_2023_10_26-18_59_07'])],
+        name='rosbag')
+
     rviz2 = Node(package='rviz2',
                  executable='rviz2',
                  name='rviz2',
@@ -123,6 +129,13 @@ def generate_launch_description():
         respawn=True,
         parameters=[param_icar])
 
+    pose_estimator = Node(
+        package='icar_middleware',
+        executable='pose_estimator',
+        name='pose_estimator',
+        respawn=True,
+        parameters=[param_icar])
+
     routine = Node(
         package='icar_routine',
         executable='routine',
@@ -131,13 +144,15 @@ def generate_launch_description():
         parameters=[param_icar])
 
     return LaunchDescription([
-        # rviz2,
-        realsense2_camera_node,
-        imu_filter_madgwick_node,
+        rosbag,
+        rviz2,
+        # realsense2_camera_node,
+        # imu_filter_madgwick_node,
         # io_stm32,
         # io_gps,
-        io_lslidar_c16,
-        io_lslidar_n301,
+        # io_lslidar_c16,
+        # io_lslidar_n301,
         transform_broadcaster,
+        pose_estimator,
         routine
     ])

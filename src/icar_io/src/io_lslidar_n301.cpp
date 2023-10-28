@@ -117,7 +117,7 @@ class IOLSLIDARN301 : public rclcpp::Node {
 
     for (int i = 0; i < 36000; i++) {
       azimuth_cos_table[i] = cos(i * M_PI / 18000);
-      azimuth_sin_table[i] = sin(i * M_PI / 18000);
+      azimuth_sin_table[i] = -sin(i * M_PI / 18000);
     }
 
     return true;
@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
 
   auto node_io_lslidar_n301 = std::make_shared<IOLSLIDARN301>();
 
-  rclcpp::executors::SingleThreadedExecutor executor;
+  rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(node_io_lslidar_n301);
   executor.spin();
 

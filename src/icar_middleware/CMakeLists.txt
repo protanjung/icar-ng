@@ -5,7 +5,11 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-set(var_dependencies rclcpp tf2 tf2_ros)
+set(var_dependencies
+    rclcpp
+    tf2
+    tf2_ros
+    icar_interfaces)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
@@ -14,9 +18,12 @@ foreach(dependency ${var_dependencies})
 endforeach()
 
 add_executable(transform_broadcaster src/transform_broadcaster.cpp)
+add_executable(pose_estimator src/pose_estimator.cpp)
 ament_target_dependencies(transform_broadcaster ${var_dependencies})
+ament_target_dependencies(pose_estimator ${var_dependencies})
 
-install(TARGETS transform_broadcaster DESTINATION lib/${PROJECT_NAME})
+install(TARGETS transform_broadcaster pose_estimator
+        DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

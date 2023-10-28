@@ -163,7 +163,12 @@ class IOGPS : public rclcpp::Node {
     // ----
     msg_gps_to_pc.pose2d.x = gps_pose_x - gps_origin_x;
     msg_gps_to_pc.pose2d.y = gps_pose_y - gps_origin_y;
-    msg_gps_to_pc.pose2d.theta = gps.speed > 4.82 * 0.539957 ? (90 - gps.course) * M_PI / 180 : 0;
+    msg_gps_to_pc.pose2d.theta = (90 - gps.course) * M_PI / 180;
+    if (msg_gps_to_pc.pose2d.theta > M_PI) {
+      msg_gps_to_pc.pose2d.theta -= 2 * M_PI;
+    } else if (msg_gps_to_pc.pose2d.theta < -M_PI) {
+      msg_gps_to_pc.pose2d.theta += 2 * M_PI;
+    }
     // ----
     pub_gps_to_pc->publish(msg_gps_to_pc);
 
