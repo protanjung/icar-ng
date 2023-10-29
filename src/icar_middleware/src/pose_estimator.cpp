@@ -29,6 +29,11 @@ class PoseEstimator : public rclcpp::Node {
   std::unique_ptr<tf2_ros::Buffer> tf_buffer;
   std::unique_ptr<tf2_ros::TransformListener> tf_listener;
 
+  // Transform
+  // =========
+  bool transform_is_initialized = false;
+  geometry_msgs::msg::TransformStamped transform_gps_link_to_base_link;
+
   // Encoder dan gyroscope
   // =====================
   uint16_t encoder_kiri;
@@ -37,7 +42,7 @@ class PoseEstimator : public rclcpp::Node {
 
   // Global positioning system
   // =========================
-  bool gps_fix;
+  bool gps_is_fix;
 
   // Pose and twist
   // ==============
@@ -86,30 +91,19 @@ class PoseEstimator : public rclcpp::Node {
   //====================================
 
   void cllbck_sub_gps_to_pc(const icar_interfaces::msg::GpsToPc::SharedPtr msg) {
-    /* The line `gps_fix = msg->navsatfix.status.status == sensor_msgs::msg::NavSatStatus::STATUS_FIX;`
-    is checking if the GPS fix status is set to "FIXED". */
-    gps_fix = msg->navsatfix.status.status == sensor_msgs::msg::NavSatStatus::STATUS_FIX;
+    if (!transform_is_initialized) { return; }
 
-    /* This code block is initializing the transform between the "gps_link" frame and the "base_link"
-    frame. It checks if the transform has already been initialized by checking the value of the
-    `is_initialized` variable. If it hasn't been initialized, it tries to lookup the transform using the
-    `lookupTransform` function from the `tf2_ros::Buffer` class. If the lookup is successful, the
-    transform is stored in the `t` variable and the `is_initialized` variable is set to true. If the
-    lookup fails, the catch block is executed and the transform remains uninitialized. */
-    static bool is_initialized = false;
-    static geometry_msgs::msg::TransformStamped t;
-    if (!is_initialized) {
-      try {
-        t = tf_buffer->lookupTransform("gps_link", "base_link", tf2::TimePointZero);
-        is_initialized = true;
-      } catch (...) {}
-    }
+    /* The above code is checking if the GPS fix status is set to "fix" in a ROS message of type
+    sensor_msgs::msg::NavSatFix. It assigns the result of the comparison to the variable gps_is_fix. */
+    gps_is_fix = msg->navsatfix.status.status == sensor_msgs::msg::NavSatStatus::STATUS_FIX;
 
-    /* The above code is calculating the polar coordinates (radius and angle) of a given point represented
-    by the translation vector t.transform.translation. The radius is calculated using the Euclidean
-    distance formula, and the angle is calculated using the atan2 function. */
-    float r = sqrtf(powf(t.transform.translation.x, 2) + powf(t.transform.translation.y, 2));
-    float a = atan2f(t.transform.translation.y, t.transform.translation.x);
+    /* The above code is calculating the distance and angle between two points in a 2D space. */
+    float r = sqrtf(
+        powf(transform_gps_link_to_base_link.transform.translation.x, 2) +
+        powf(transform_gps_link_to_base_link.transform.translation.y, 2));
+    float a = atan2f(
+        transform_gps_link_to_base_link.transform.translation.y,
+        transform_gps_link_to_base_link.transform.translation.x);
 
     /* The above code is calculating the GPS position (x, y, and theta) based on the current position (x,
     y, and theta) and a given distance (r) and angle (a). It uses trigonometric functions to calculate
@@ -190,6 +184,13 @@ class PoseEstimator : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(), "Encoder pulse to meter: %f", icar_conversion_encoder_pulse_to_meter);
     RCLCPP_INFO(this->get_logger(), "Alpha XY: %f", icar_cf_alpha_xy);
     RCLCPP_INFO(this->get_logger(), "Alpha Theta: %f", icar_cf_alpha_theta);
+
+    while (!transform_is_initialized) {
+      try {
+        transform_gps_link_to_base_link = tf_buffer->lookupTransform("gps_link", "base_link", tf2::TimePointZero);
+        transform_is_initialized = true;
+      } catch (...) { std::this_thread::sleep_for(1s); }
+    }
 
     return true;
   }
@@ -272,7 +273,7 @@ class PoseEstimator : public rclcpp::Node {
     if (last_gps_pose2d.x == 0 || last_gps_pose2d.y == 0) { last_gps_pose2d = gps_pose2d; }
 
     if (RADIUS(odometry_pose2d, last_odometry_pose2d) > 0.1) {
-      if (gps_fix) {
+      if (gps_is_fix) {
         float delta_x = gps_pose2d.x - pose_pose2d.x;
         float delta_y = gps_pose2d.y - pose_pose2d.y;
 
@@ -301,8 +302,7 @@ class PoseEstimator : public rclcpp::Node {
     if (last_gps_pose2d.x == 0 || last_gps_pose2d.y == 0) { last_gps_pose2d = gps_pose2d; }
 
     if (RADIUS(odometry_pose2d, last_odometry_pose2d) > 1.0) {
-      if (gps_fix) {
-        /* Calculate the difference between the GPS theta and actual theta. */
+      if (gps_is_fix) {
         float d_angle = gps_pose2d.theta - pose_pose2d.theta;
         if (d_angle > M_PI) {
           d_angle -= 2 * M_PI;
@@ -310,7 +310,6 @@ class PoseEstimator : public rclcpp::Node {
           d_angle += 2 * M_PI;
         }
 
-        /* Flip angle by 180 degrees if the car is moving backwards. */
         float d_angle_corrected = fabsf(d_angle) < M_PI_2 ? d_angle : d_angle + M_PI;
         if (d_angle_corrected > M_PI) {
           d_angle_corrected -= 2 * M_PI;

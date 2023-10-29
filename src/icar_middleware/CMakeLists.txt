@@ -9,20 +9,31 @@ set(var_dependencies
     rclcpp
     tf2
     tf2_ros
-    icar_interfaces)
+    pcl_ros
+    pcl_conversions
+    icar_interfaces
+    pandu_ros2_kit)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(PCL REQUIRED)
 foreach(dependency ${var_dependencies})
   find_package(${dependency} REQUIRED)
 endforeach()
 
+include_directories(${PCL_INCLUDE_DIRS})
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
 add_executable(transform_broadcaster src/transform_broadcaster.cpp)
 add_executable(pose_estimator src/pose_estimator.cpp)
+add_executable(lidar_transform src/lidar_transform.cpp)
 ament_target_dependencies(transform_broadcaster ${var_dependencies})
 ament_target_dependencies(pose_estimator ${var_dependencies})
+ament_target_dependencies(lidar_transform ${var_dependencies})
+target_link_libraries(lidar_transform ${PCL_LIBRARIES})
 
-install(TARGETS transform_broadcaster pose_estimator
+install(TARGETS transform_broadcaster pose_estimator lidar_transform
         DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

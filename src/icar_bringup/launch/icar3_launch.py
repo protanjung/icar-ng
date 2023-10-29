@@ -136,6 +136,12 @@ def generate_launch_description():
         respawn=True,
         parameters=[param_icar])
 
+    lidar_transform = Node(
+        package='icar_middleware',
+        executable='lidar_transform',
+        name='lidar_transform',
+        respawn=True)
+
     routine = Node(
         package='icar_routine',
         executable='routine',
@@ -154,5 +160,6 @@ def generate_launch_description():
         # io_lslidar_n301,
         transform_broadcaster,
         pose_estimator,
+        lidar_transform,
         routine
     ])
