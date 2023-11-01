@@ -45,9 +45,9 @@ class LidarTransform : public rclcpp::Node {
 
   // Transform
   // =========
-  bool transform_is_initialized = false;
-  geometry_msgs::msg::TransformStamped transform_base_link_to_lidar_front_link;
-  geometry_msgs::msg::TransformStamped transform_base_link_to_lidar_rearright_link;
+  bool tf_is_initialized = false;
+  geometry_msgs::msg::TransformStamped tf_base_lidar_front;
+  geometry_msgs::msg::TransformStamped tf_base_lidar_rearright;
 
   // Point cloud
   // ===========
@@ -98,7 +98,7 @@ class LidarTransform : public rclcpp::Node {
   //====================================
 
   void cllbck_sub_lidar_front_points_xyzir(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
-    if (!transform_is_initialized) { return; }
+    if (!tf_is_initialized) { return; }
 
     /* Converting ROS message to PCL point cloud */
     pcl::PointCloud<PointXYZIR> input;
@@ -120,17 +120,15 @@ class LidarTransform : public rclcpp::Node {
 
     /* Transform the point cloud to the base_link frame */
     mutex_lidar_front.lock();
-    pcl_ros::transformPointCloud(
-        lidar_front_points_all, lidar_front_points_all_on_base, transform_base_link_to_lidar_front_link);
+    pcl_ros::transformPointCloud(lidar_front_points_all, lidar_front_points_all_on_base, tf_base_lidar_front);
     for (int i = 0; i < 16; i++) {
-      pcl_ros::transformPointCloud(
-          lidar_front_points_ring[i], lidar_front_points_ring_on_base[i], transform_base_link_to_lidar_front_link);
+      pcl_ros::transformPointCloud(lidar_front_points_ring[i], lidar_front_points_ring_on_base[i], tf_base_lidar_front);
     }
     mutex_lidar_front.unlock();
   }
 
   void cllbck_sub_lidar_rearright_xyzi(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
-    if (!transform_is_initialized) { return; }
+    if (!tf_is_initialized) { return; }
 
     /* Converting ROS message to PCL point cloud */
     pcl::PointCloud<pcl::PointXYZI> input;
@@ -151,20 +149,18 @@ class LidarTransform : public rclcpp::Node {
     /* Transform the point cloud to the base_link frame */
     mutex_lidar_rearright.lock();
     pcl_ros::transformPointCloud(
-        lidar_rearright_points_all, lidar_rearright_points_all_on_base, transform_base_link_to_lidar_rearright_link);
+        lidar_rearright_points_all, lidar_rearright_points_all_on_base, tf_base_lidar_rearright);
     mutex_lidar_rearright.unlock();
   }
 
   //====================================
 
   bool lidar_transform_init() {
-    while (!transform_is_initialized) {
+    while (!tf_is_initialized) {
       try {
-        transform_base_link_to_lidar_front_link =
-            tf_buffer->lookupTransform("base_link", "lidar_front_link", tf2::TimePointZero);
-        transform_base_link_to_lidar_rearright_link =
-            tf_buffer->lookupTransform("base_link", "lidar_rearright_link", tf2::TimePointZero);
-        transform_is_initialized = true;
+        tf_base_lidar_front = tf_buffer->lookupTransform("base_link", "lidar_front_link", tf2::TimePointZero);
+        tf_base_lidar_rearright = tf_buffer->lookupTransform("base_link", "lidar_rearright_link", tf2::TimePointZero);
+        tf_is_initialized = true;
       } catch (...) { std::this_thread::sleep_for(1s); }
     }
 
@@ -173,9 +169,9 @@ class LidarTransform : public rclcpp::Node {
       icar_interfaces::msg::LidarRing lidar_ring;
       for (int i = 0; i < 90; i++) {
         geometry_msgs::msg::Point p;
-        p.x = transform_base_link_to_lidar_front_link.transform.translation.x;
-        p.y = transform_base_link_to_lidar_front_link.transform.translation.y;
-        p.z = transform_base_link_to_lidar_front_link.transform.translation.z;
+        p.x = tf_base_lidar_front.transform.translation.x;
+        p.y = tf_base_lidar_front.transform.translation.y;
+        p.z = tf_base_lidar_front.transform.translation.z;
         lidar_ring.point.push_back(p);
       }
       lidar_rings.ring.push_back(lidar_ring);
@@ -203,8 +199,8 @@ class LidarTransform : public rclcpp::Node {
     for (int i_ring = 0; i_ring < 16; i_ring++) {
       for (auto point : lidar_front_points_ring_on_base[i_ring]) {
         /* Calculate the distance of the point to the origin */
-        float dx = point.x - transform_base_link_to_lidar_front_link.transform.translation.x;
-        float dy = point.y - transform_base_link_to_lidar_front_link.transform.translation.y;
+        float dx = point.x - tf_base_lidar_front.transform.translation.x;
+        float dy = point.y - tf_base_lidar_front.transform.translation.y;
         float r = sqrtf(dx * dx + dy * dy);
 
         /* Calculate the angle of the point */
@@ -215,10 +211,10 @@ class LidarTransform : public rclcpp::Node {
         if (angle_index < 0 || angle_index >= 90) { continue; }
 
         /* Calculate the existing point's distance to the origin */
-        float dx_old = msg_lidar_base_rings.ring[i_ring].point[angle_index].x -
-                       transform_base_link_to_lidar_front_link.transform.translation.x;
-        float dy_old = msg_lidar_base_rings.ring[i_ring].point[angle_index].y -
-                       transform_base_link_to_lidar_front_link.transform.translation.y;
+        float dx_old =
+            msg_lidar_base_rings.ring[i_ring].point[angle_index].x - tf_base_lidar_front.transform.translation.x;
+        float dy_old =
+            msg_lidar_base_rings.ring[i_ring].point[angle_index].y - tf_base_lidar_front.transform.translation.y;
         float r_old = sqrtf(dx_old * dx_old + dy_old * dy_old);
 
         /* If the new point is closer to the origin, replace the existing point */

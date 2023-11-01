@@ -16,7 +16,7 @@ param_icar = {'icar.tf.rear_axle': [0.00, 0.00, 0.30, 0.00, 0.00, 0.00],
               'icar.tf.front_axle': [2.30, 0.00, 0.30, 0.00, 0.00, 0.00],
               'icar.tf.body': [1.15, 0.00, 1.18, 0.00, 0.00, 0.00],
               'icar.tf.gps': [2.30, 0.00, 2.05, 0.00, 0.00, 0.00],
-              'icar.tf.lidar_front': [2.95, 0.00, 0.70, 0.50, -8.00, 179.00],
+              'icar.tf.lidar_front': [2.95, 0.00, 0.70, 0.00, -8.00, 179.00],
               'icar.tf.lidar_rearright': [-0.61, -0.81, 0.70, 0.00, 0.00, -131.00],
               'icar.tyre.width': 185,
               'icar.tyre.aspect_ratio': 60,
@@ -102,7 +102,7 @@ def generate_launch_description():
                      'frame_id': 'lidar_front_link',
                      'azimuth_start': 90.0,
                      'azimuth_stop': 270.0,
-                     'distance_min': 0.0,
+                     'distance_min': 0.5,
                      'distance_max': 50.0}],
         remappings=[('/points_xyz', '/lidar_front/points_xyz'),
                     ('/points_xyzir', '/lidar_front/points_xyzir')])
@@ -117,7 +117,7 @@ def generate_launch_description():
                      'frame_id': 'lidar_rearright_link',
                      'azimuth_start': 0.0,
                      'azimuth_stop': 360.0,
-                     'distance_min': 0.0,
+                     'distance_min': 0.5,
                      'distance_max': 50.0}],
         remappings=[('/points_xyz', '/lidar_rearright/points_xyz'),
                     ('/points_xyzi', '/lidar_rearright/points_xyzi')])
@@ -142,6 +142,12 @@ def generate_launch_description():
         name='lidar_transform',
         respawn=True)
 
+    road_segmentation = Node(
+        package='icar_middleware',
+        executable='road_segmentation',
+        name='road_segmentation',
+        respawn=True)
+
     routine = Node(
         package='icar_routine',
         executable='routine',
@@ -161,5 +167,6 @@ def generate_launch_description():
         transform_broadcaster,
         pose_estimator,
         lidar_transform,
+        road_segmentation,
         routine
     ])

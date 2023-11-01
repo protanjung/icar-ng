@@ -31,8 +31,8 @@ class PoseEstimator : public rclcpp::Node {
 
   // Transform
   // =========
-  bool transform_is_initialized = false;
-  geometry_msgs::msg::TransformStamped transform_gps_link_to_base_link;
+  bool tf_is_initialized = false;
+  geometry_msgs::msg::TransformStamped tf_gps_base;
 
   // Encoder dan gyroscope
   // =====================
@@ -91,19 +91,15 @@ class PoseEstimator : public rclcpp::Node {
   //====================================
 
   void cllbck_sub_gps_to_pc(const icar_interfaces::msg::GpsToPc::SharedPtr msg) {
-    if (!transform_is_initialized) { return; }
+    if (!tf_is_initialized) { return; }
 
     /* The above code is checking if the GPS fix status is set to "fix" in a ROS message of type
     sensor_msgs::msg::NavSatFix. It assigns the result of the comparison to the variable gps_is_fix. */
     gps_is_fix = msg->navsatfix.status.status == sensor_msgs::msg::NavSatStatus::STATUS_FIX;
 
     /* The above code is calculating the distance and angle between two points in a 2D space. */
-    float r = sqrtf(
-        powf(transform_gps_link_to_base_link.transform.translation.x, 2) +
-        powf(transform_gps_link_to_base_link.transform.translation.y, 2));
-    float a = atan2f(
-        transform_gps_link_to_base_link.transform.translation.y,
-        transform_gps_link_to_base_link.transform.translation.x);
+    float r = sqrtf(powf(tf_gps_base.transform.translation.x, 2) + powf(tf_gps_base.transform.translation.y, 2));
+    float a = atan2f(tf_gps_base.transform.translation.y, tf_gps_base.transform.translation.x);
 
     /* The above code is calculating the GPS position (x, y, and theta) based on the current position (x,
     y, and theta) and a given distance (r) and angle (a). It uses trigonometric functions to calculate
@@ -185,10 +181,10 @@ class PoseEstimator : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(), "Alpha XY: %f", icar_cf_alpha_xy);
     RCLCPP_INFO(this->get_logger(), "Alpha Theta: %f", icar_cf_alpha_theta);
 
-    while (!transform_is_initialized) {
+    while (!tf_is_initialized) {
       try {
-        transform_gps_link_to_base_link = tf_buffer->lookupTransform("gps_link", "base_link", tf2::TimePointZero);
-        transform_is_initialized = true;
+        tf_gps_base = tf_buffer->lookupTransform("gps_link", "base_link", tf2::TimePointZero);
+        tf_is_initialized = true;
       } catch (...) { std::this_thread::sleep_for(1s); }
     }
 

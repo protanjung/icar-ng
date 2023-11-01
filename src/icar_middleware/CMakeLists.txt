@@ -28,13 +28,20 @@ add_definitions(${PCL_DEFINITIONS})
 add_executable(transform_broadcaster src/transform_broadcaster.cpp)
 add_executable(pose_estimator src/pose_estimator.cpp)
 add_executable(lidar_transform src/lidar_transform.cpp)
+add_executable(road_segmentation src/road_segmentation.cpp)
 ament_target_dependencies(transform_broadcaster ${var_dependencies})
 ament_target_dependencies(pose_estimator ${var_dependencies})
 ament_target_dependencies(lidar_transform ${var_dependencies})
+ament_target_dependencies(road_segmentation ${var_dependencies})
 target_link_libraries(lidar_transform ${PCL_LIBRARIES})
+target_link_libraries(road_segmentation ${PCL_LIBRARIES})
 
-install(TARGETS transform_broadcaster pose_estimator lidar_transform
-        DESTINATION lib/${PROJECT_NAME})
+install(
+  TARGETS transform_broadcaster
+          pose_estimator
+          lidar_transform
+          road_segmentation
+  DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
