@@ -299,30 +299,30 @@ class PoseEstimator : public rclcpp::Node {
 
     if (RADIUS(odometry_pose2d, last_odometry_pose2d) > 1.0) {
       if (gps_is_fix) {
-        float d_angle = gps_pose2d.theta - pose_pose2d.theta;
-        if (d_angle > M_PI) {
-          d_angle -= 2 * M_PI;
-        } else if (d_angle < -M_PI) {
-          d_angle += 2 * M_PI;
+        float delta_angle = gps_pose2d.theta - pose_pose2d.theta;
+        if (delta_angle > M_PI) {
+          delta_angle -= 2 * M_PI;
+        } else if (delta_angle < -M_PI) {
+          delta_angle += 2 * M_PI;
         }
 
-        float d_angle_corrected = fabsf(d_angle) < M_PI_2 ? d_angle : d_angle + M_PI;
-        if (d_angle_corrected > M_PI) {
-          d_angle_corrected -= 2 * M_PI;
-        } else if (d_angle_corrected < -M_PI) {
-          d_angle_corrected += 2 * M_PI;
+        float delta_angle_corrected = fabsf(delta_angle) < M_PI_2 ? delta_angle : delta_angle + M_PI;
+        if (delta_angle_corrected > M_PI) {
+          delta_angle_corrected -= 2 * M_PI;
+        } else if (delta_angle_corrected < -M_PI) {
+          delta_angle_corrected += 2 * M_PI;
         }
 
         if (init_counter >= 10) {
           pose_pose2d.theta = (icar_cf_alpha_theta) * (pose_pose2d.theta) +
-                              (1 - icar_cf_alpha_theta) * (pose_pose2d.theta + d_angle_corrected);
+                              (1 - icar_cf_alpha_theta) * (pose_pose2d.theta + delta_angle_corrected);
           if (pose_pose2d.theta > M_PI) {
             pose_pose2d.theta -= 2 * M_PI;
           } else if (pose_pose2d.theta < -M_PI) {
             pose_pose2d.theta += 2 * M_PI;
           }
         } else {
-          pose_pose2d.theta = (0.2) * (pose_pose2d.theta) + (1 - 0.2) * (pose_pose2d.theta + d_angle);
+          pose_pose2d.theta = (0.2) * (pose_pose2d.theta) + (1 - 0.2) * (pose_pose2d.theta + delta_angle);
           if (pose_pose2d.theta > M_PI) {
             pose_pose2d.theta -= 2 * M_PI;
           } else if (pose_pose2d.theta < -M_PI) {

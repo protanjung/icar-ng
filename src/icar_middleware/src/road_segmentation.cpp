@@ -5,6 +5,7 @@
 #include "pcl/filters/passthrough.h"
 #include "pcl/point_cloud.h"
 #include "pcl/point_types.h"
+#include "pcl_ros/transforms.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
@@ -17,6 +18,7 @@ class RoadSegmentation : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr tim_10hz;
   //-----Susbcriber
   rclcpp::Subscription<icar_interfaces::msg::LidarRings>::SharedPtr sub_lidar_base_rings;
+  rclcpp::Subscription<icar_interfaces::msg::Pose>::SharedPtr sub_pose;
   //-----Transform listener
   std::unique_ptr<tf2_ros::Buffer> tf_buffer;
   std::unique_ptr<tf2_ros::TransformListener> tf_listener;
@@ -30,8 +32,13 @@ class RoadSegmentation : public rclcpp::Node {
 
   // Point cloud
   // ===========
-  pcl::PointCloud<pcl::PointXYZ> cloud_left, cloud_pool_left[20];
-  pcl::PointCloud<pcl::PointXYZ> cloud_right, cloud_pool_right[20];
+  pcl::PointCloud<pcl::PointXYZ> cloud_left, cloud_pool_left[20], cloud_fit_left;
+  pcl::PointCloud<pcl::PointXYZ> cloud_right, cloud_pool_right[20], cloud_fit_right;
+
+  // Pose and twist
+  // ==============
+  geometry_msgs::msg::Pose2D pose;
+  geometry_msgs::msg::Twist twist;
 
   RoadSegmentation() : Node("road_segmentation") {
     //-----Timer
@@ -39,6 +46,8 @@ class RoadSegmentation : public rclcpp::Node {
     //-----Subscriber
     sub_lidar_base_rings = this->create_subscription<icar_interfaces::msg::LidarRings>(
         "lidar_base/rings", 10, std::bind(&RoadSegmentation::cllbck_sub_lidar_base_rings, this, std::placeholders::_1));
+    sub_pose = this->create_subscription<icar_interfaces::msg::Pose>(
+        "pose", 10, std::bind(&RoadSegmentation::cllbck_sub_pose, this, std::placeholders::_1));
     //-----Tranform listener
     tf_buffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener = std::make_unique<tf2_ros::TransformListener>(*tf_buffer);
@@ -119,15 +128,65 @@ class RoadSegmentation : public rclcpp::Node {
       cloud_tangent_angle_right.push_back(step0_right);
     }
 
-    // // * Pooling
-    // // * =======
-    // cloud_left = cloud_delta_height_left + cloud_delta_length_left + cloud_tangent_angle_left;
-    // cloud_right = cloud_delta_height_right + cloud_delta_length_right + cloud_tangent_angle_right;
+    // * Pooling
+    // * =======
+    static geometry_msgs::msg::Pose2D last_pose;
+    float dx = pose.x - last_pose.x;
+    float dy = pose.y - last_pose.y;
+    float r = sqrtf(dx * dx + dy * dy);
+    if (r > 0.2) {
+      /* The above code is calculating the difference in angle between two given angles, `a` and `o`. */
+      float a = atan2f(dy, dx);
+      float o = pose.theta;
+      float delta_angle = a - o;
+      if (delta_angle > M_PI) { delta_angle -= 2 * M_PI; }
+      if (delta_angle < -M_PI) { delta_angle += 2 * M_PI; }
+
+      bool is_forward = fabsf(delta_angle) < M_PI_2;
+
+      /* Create transform matrix to be applied to the point cloud. */
+      Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+      transform.translate(Eigen::Vector3f(is_forward ? -r : r, 0.0, 0.0));
+      transform.rotate(Eigen::AngleAxisf(last_pose.theta - pose.theta, Eigen::Vector3f::UnitZ()));
+
+      /* Apply transform matrix to the point cloud. */
+      for (int i = 1; i < 20; i++) {
+        pcl::transformPointCloud(cloud_pool_left[i], cloud_pool_left[i], transform);
+        cloud_pool_left[i - 1] = cloud_pool_left[i];
+        pcl::transformPointCloud(cloud_pool_right[i], cloud_pool_right[i], transform);
+        cloud_pool_right[i - 1] = cloud_pool_right[i];
+      }
+      cloud_pool_left[19] = cloud_delta_height_left + cloud_delta_length_left + cloud_tangent_angle_left;
+      cloud_pool_right[19] = cloud_delta_height_right + cloud_delta_length_right + cloud_tangent_angle_right;
+
+      /* Pooling */
+      cloud_left.clear();
+      cloud_right.clear();
+      for (int i = 0; i < 20; i++) {
+        cloud_left += cloud_pool_left[i];
+        cloud_right += cloud_pool_right[i];
+      }
+
+      /* Update last pose. */
+      last_pose = pose;
+    }
+
+    // * Fitting
+    // * =======
+    fit_cloud(cloud_left, -5.0, 20.0, 0.1, cloud_fit_left);
+    fit_cloud(cloud_right, -5.0, 20.0, 0.1, cloud_fit_right);
 
     // * Visualization
     // * =============
-    draw_cloud("road_candidate", 1, cloud_left, {0.5, 0.6, 0.5, 1.0});
-    draw_cloud("road_candidate", 2, cloud_right, {1.0, 0.6, 0.5, 1.0});
+    draw_cloud("road_candidate", 1, cloud_left, {0.5, 0.6, 0.5, 1.0}, 0.1, 0.1);
+    draw_cloud("road_candidate", 2, cloud_right, {1.0, 0.6, 0.5, 1.0}, 0.1, 0.1);
+    draw_cloud("road_candidate", 3, cloud_fit_left, {0.5, 0.6, 1.0, 1.0}, 0.1, 0.1);
+    draw_cloud("road_candidate", 4, cloud_fit_right, {1.0, 0.6, 1.0, 1.0}, 0.1, 0.1);
+  }
+
+  void cllbck_sub_pose(const icar_interfaces::msg::Pose::SharedPtr msg) {
+    pose = msg->pose;
+    twist = msg->twist;
   }
 
   // ===================================
@@ -319,7 +378,62 @@ class RoadSegmentation : public rclcpp::Node {
 
   // ===================================
 
-  void draw_cloud(std::string ns, int id, pcl::PointCloud<pcl::PointXYZ> in, std::vector<float> color) {
+  void ring_to_cloud(const icar_interfaces::msg::LidarRing &in, pcl::PointCloud<pcl::PointXYZ> &out) {
+    out.clear();
+    for (const auto &point : in.point) {
+      pcl::PointXYZ p;
+      p.x = point.x;
+      p.y = point.y;
+      p.z = point.z;
+      out.push_back(p);
+    }
+  }
+
+  void fit_cloud(
+      const pcl::PointCloud<pcl::PointXYZ> &in,
+      float min_x,
+      float max_x,
+      float step_x,
+      pcl::PointCloud<pcl::PointXYZ> &out) {
+    int n = in.points.size();
+
+    std::vector<double> x(n);
+    std::vector<double> y(n);
+    for (int i = 0; i < n; i++) {
+      x[i] = in.points[i].x;
+      y[i] = in.points[i].y;
+    }
+    Eigen::Map<Eigen::VectorXd> x_eigen(x.data(), n);
+    Eigen::Map<Eigen::VectorXd> y_eigen(y.data(), n);
+
+    Eigen::MatrixXd X(n, 3);
+    X.col(0) = Eigen::VectorXd::Ones(n);
+    X.col(1) = x_eigen;
+    X.col(2) = (x_eigen.array().square());
+
+    Eigen::Vector3d coeffs = (X.transpose() * X).ldlt().solve(X.transpose() * y_eigen);
+
+    float a = coeffs(0);
+    float b = coeffs(1);
+    float c = coeffs(2);
+
+    out.clear();
+    for (float x = min_x; x < max_x; x += step_x) {
+      pcl::PointXYZ p;
+      p.x = x;
+      p.y = a + b * x + c * x * x;
+      p.z = 0;
+      out.push_back(p);
+    }
+  }
+
+  void draw_cloud(
+      const std::string &ns,
+      const int &id,
+      const pcl::PointCloud<pcl::PointXYZ> &in,
+      const std::vector<float> &color,
+      const float &scale_width,
+      const float &scale_height) {
     std::vector<geometry_msgs::msg::Point> points;
     for (const auto &point : in.points) {
       geometry_msgs::msg::Point p;
@@ -330,20 +444,9 @@ class RoadSegmentation : public rclcpp::Node {
     }
 
     if (points.empty()) {
-      _marker.points("base_link", ns, -id, points, color, 0.1, 0.1);
+      _marker.points("base_link", ns, -id, points, color, scale_width, scale_height);
     } else {
-      _marker.points("base_link", ns, id, points, color, 0.1, 0.1);
-    }
-  }
-
-  void ring_to_cloud(const icar_interfaces::msg::LidarRing &in, pcl::PointCloud<pcl::PointXYZ> &out) {
-    out.clear();
-    for (const auto &point : in.point) {
-      pcl::PointXYZ p;
-      p.x = point.x;
-      p.y = point.y;
-      p.z = point.z;
-      out.push_back(p);
+      _marker.points("base_link", ns, id, points, color, scale_width, scale_height);
     }
   }
 
