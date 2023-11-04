@@ -8,11 +8,11 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "/usr/local/share/cmake/GeographicLib/")
 
 set(var_dependencies
-    rclcpp
-    pcl_conversions
     icar_interfaces
     lwgps
-    pandu_ros2_kit)
+    pandu_ros2_kit
+    pcl_conversions
+    rclcpp)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
@@ -26,14 +26,14 @@ include_directories(${GeographicLib_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
-add_executable(io_stm32 src/io_stm32.cpp)
 add_executable(io_gps src/io_gps.cpp)
 add_executable(io_lslidar_c16 src/io_lslidar_c16.cpp)
 add_executable(io_lslidar_n301 src/io_lslidar_n301.cpp)
-ament_target_dependencies(io_stm32 ${var_dependencies})
+add_executable(io_stm32 src/io_stm32.cpp)
 ament_target_dependencies(io_gps ${var_dependencies})
 ament_target_dependencies(io_lslidar_c16 ${var_dependencies})
 ament_target_dependencies(io_lslidar_n301 ${var_dependencies})
+ament_target_dependencies(io_stm32 ${var_dependencies})
 target_link_libraries(io_gps ${GeographicLib_LIBRARIES} serialport)
 target_link_libraries(io_lslidar_c16 ${PCL_LIBRARIES})
 target_link_libraries(io_lslidar_n301 ${PCL_LIBRARIES})

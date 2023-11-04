@@ -6,12 +6,12 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 set(var_dependencies
-    rclcpp
-    tf2
-    tf2_ros
-    tf2_geometry_msgs
     icar_interfaces
-    pandu_ros2_kit)
+    pandu_ros2_kit
+    tf2
+    tf2_geometry_msgs
+    tf2_ros
+    rclcpp)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)

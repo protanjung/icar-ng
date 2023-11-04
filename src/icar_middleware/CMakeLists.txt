@@ -6,13 +6,13 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 set(var_dependencies
+    icar_interfaces
+    pandu_ros2_kit
+    pcl_conversions
+    pcl_ros
     rclcpp
     tf2
-    tf2_ros
-    pcl_ros
-    pcl_conversions
-    icar_interfaces
-    pandu_ros2_kit)
+    tf2_ros)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
@@ -25,22 +25,22 @@ include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
-add_executable(transform_broadcaster src/transform_broadcaster.cpp)
-add_executable(pose_estimator src/pose_estimator.cpp)
 add_executable(lidar_transform src/lidar_transform.cpp)
+add_executable(pose_estimator src/pose_estimator.cpp)
 add_executable(road_segmentation src/road_segmentation.cpp)
-ament_target_dependencies(transform_broadcaster ${var_dependencies})
-ament_target_dependencies(pose_estimator ${var_dependencies})
+add_executable(transform_broadcaster src/transform_broadcaster.cpp)
 ament_target_dependencies(lidar_transform ${var_dependencies})
+ament_target_dependencies(pose_estimator ${var_dependencies})
 ament_target_dependencies(road_segmentation ${var_dependencies})
+ament_target_dependencies(transform_broadcaster ${var_dependencies})
 target_link_libraries(lidar_transform ${PCL_LIBRARIES})
 target_link_libraries(road_segmentation ${PCL_LIBRARIES})
 
 install(
-  TARGETS transform_broadcaster
+  TARGETS lidar_transform
           pose_estimator
-          lidar_transform
           road_segmentation
+          transform_broadcaster
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

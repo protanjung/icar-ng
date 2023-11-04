@@ -16,12 +16,12 @@ endforeach()
 
 set(msg_files
     msg/Dummy.msg
-    msg/Stm32FromPc.msg
-    msg/Stm32ToPc.msg
     msg/GpsToPc.msg
-    msg/Pose.msg
     msg/LidarRing.msg
-    msg/LidarRings.msg)
+    msg/LidarRings.msg
+    msg/Pose.msg
+    msg/Stm32FromPc.msg
+    msg/Stm32ToPc.msg)
 set(srv_files srv/Dummy.srv)
 rosidl_generate_interfaces(
   ${PROJECT_NAME}
