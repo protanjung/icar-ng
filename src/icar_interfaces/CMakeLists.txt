@@ -22,7 +22,7 @@ set(msg_files
     msg/Pose.msg
     msg/Stm32FromPc.msg
     msg/Stm32ToPc.msg)
-set(srv_files srv/Dummy.srv)
+set(srv_files srv/Dummy.srv srv/PxCmInference.srv)
 rosidl_generate_interfaces(
   ${PROJECT_NAME}
   ${msg_files}

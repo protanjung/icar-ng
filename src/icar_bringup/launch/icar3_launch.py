@@ -44,14 +44,14 @@ icar_ng_data_path = os.path.join(os.environ['HOME'], 'icar-ng-data')
 
 
 def generate_launch_description():
-    rosbag = ExecuteProcess(
-        cmd=['ros2', 'bag', 'play', PathJoinSubstitution([icar_ng_data_path, 'bag', 'rosbag2_2023_10_26-18_59_07'])],
-        name='rosbag')
-
-    rviz2 = Node(package='rviz2',
-                 executable='rviz2',
-                 name='rviz2',
-                 arguments=['-d', PathJoinSubstitution([icar_ng_data_path, 'rviz', 'icar3.rviz'])])
+    imu_filter_madgwick_node = Node(
+        package='imu_filter_madgwick',
+        executable='imu_filter_madgwick_node',
+        name='imu_filter_madgwick_node',
+        respawn=True,
+        parameters=[{'use_mag': False}],
+        remappings=[('/imu/data_raw', '/imu_raw'),
+                    ('/imu/data', '/imu_filtered')])
 
     realsense2_camera_node = Node(
         package='realsense2_camera',
@@ -65,22 +65,14 @@ def generate_launch_description():
                      'initial_reset': True}],
         remappings=[('/imu', '/imu_raw')])
 
-    imu_filter_madgwick_node = Node(
-        package='imu_filter_madgwick',
-        executable='imu_filter_madgwick_node',
-        name='imu_filter_madgwick_node',
-        respawn=True,
-        parameters=[{'use_mag': False}],
-        remappings=[('/imu/data_raw', '/imu_raw'),
-                    ('/imu/data', '/imu_filtered')])
+    rosbag = ExecuteProcess(
+        cmd=['ros2', 'bag', 'play', PathJoinSubstitution([icar_ng_data_path, 'bag', 'rosbag2_2023_10_26-18_59_07'])],
+        name='rosbag')
 
-    io_stm32 = Node(
-        package='icar_io',
-        executable='io_stm32',
-        name='io_stm32',
-        respawn=True,
-        parameters=[{'stm32.ip': '192.168.50.2',
-                     'stm32.port': 9798}])
+    rviz2 = Node(package='rviz2',
+                 executable='rviz2',
+                 name='rviz2',
+                 arguments=['-d', PathJoinSubstitution([icar_ng_data_path, 'rviz', 'icar3.rviz'])])
 
     io_gps = Node(
         package='icar_io',
@@ -122,12 +114,19 @@ def generate_launch_description():
         remappings=[('/points_xyz', '/lidar_rearright/points_xyz'),
                     ('/points_xyzi', '/lidar_rearright/points_xyzi')])
 
-    transform_broadcaster = Node(
-        package='icar_middleware',
-        executable='transform_broadcaster',
-        name='transform_broadcaster',
+    io_stm32 = Node(
+        package='icar_io',
+        executable='io_stm32',
+        name='io_stm32',
         respawn=True,
-        parameters=[param_icar])
+        parameters=[{'stm32.ip': '192.168.50.2',
+                     'stm32.port': 9798}])
+
+    lidar_transform = Node(
+        package='icar_middleware',
+        executable='lidar_transform',
+        name='lidar_transform',
+        respawn=True)
 
     pose_estimator = Node(
         package='icar_middleware',
@@ -136,17 +135,24 @@ def generate_launch_description():
         respawn=True,
         parameters=[param_icar])
 
-    lidar_transform = Node(
+    px_cm_inference = Node(
         package='icar_middleware',
-        executable='lidar_transform',
-        name='lidar_transform',
-        respawn=True)
+        executable='px_cm_inference',
+        name='px_cm_inference',
+        respawn=True, output='screen')
 
     road_segmentation = Node(
         package='icar_middleware',
         executable='road_segmentation',
         name='road_segmentation',
-        respawn=True)
+        respawn=True, output='screen')
+
+    transform_broadcaster = Node(
+        package='icar_middleware',
+        executable='transform_broadcaster',
+        name='transform_broadcaster',
+        respawn=True,
+        parameters=[param_icar])
 
     routine = Node(
         package='icar_routine',
@@ -156,17 +162,18 @@ def generate_launch_description():
         parameters=[param_icar])
 
     return LaunchDescription([
-        rosbag,
-        rviz2,
-        # realsense2_camera_node,
         # imu_filter_madgwick_node,
-        # io_stm32,
+        # realsense2_camera_node,
+        # rosbag,
+        # rviz2,
         # io_gps,
         # io_lslidar_c16,
         # io_lslidar_n301,
-        transform_broadcaster,
-        pose_estimator,
-        lidar_transform,
+        # io_stm32,
+        # lidar_transform,
+        # pose_estimator,
+        # px_cm_inference,
         road_segmentation,
-        routine
+        transform_broadcaster,
+        # routine,
     ])

@@ -161,7 +161,10 @@ class LidarTransform : public rclcpp::Node {
         tf_base_lidar_front = tf_buffer->lookupTransform("base_link", "lidar_front_link", tf2::TimePointZero);
         tf_base_lidar_rearright = tf_buffer->lookupTransform("base_link", "lidar_rearright_link", tf2::TimePointZero);
         tf_is_initialized = true;
-      } catch (...) { std::this_thread::sleep_for(1s); }
+      } catch (...) {
+        RCLCPP_ERROR(this->get_logger(), "TF lookup timeout, it is normal if it happens at startup. Retrying..");
+        std::this_thread::sleep_for(1s);
+      }
     }
 
     icar_interfaces::msg::LidarRings lidar_rings;

@@ -1,6 +1,7 @@
 #include "boost/thread/mutex.hpp"
 #include "icar_interfaces/msg/lidar_rings.hpp"
 #include "icar_interfaces/msg/pose.hpp"
+#include "icar_interfaces/srv/px_cm_inference.hpp"
 #include "pandu_ros2_kit/help_marker.hpp"
 #include "pcl/filters/passthrough.h"
 #include "pcl/point_cloud.h"
@@ -196,7 +197,10 @@ class RoadSegmentation : public rclcpp::Node {
       try {
         tf_base_lidar_front = tf_buffer->lookupTransform("base_link", "lidar_front_link", tf2::TimePointZero);
         tf_is_initialized = true;
-      } catch (...) { std::this_thread::sleep_for(1s); }
+      } catch (...) {
+        RCLCPP_ERROR(this->get_logger(), "TF lookup timeout, it is normal if it happens at startup. Retrying..");
+        std::this_thread::sleep_for(1s);
+      }
     }
 
     return true;

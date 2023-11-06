@@ -185,7 +185,10 @@ class PoseEstimator : public rclcpp::Node {
       try {
         tf_gps_base = tf_buffer->lookupTransform("gps_link", "base_link", tf2::TimePointZero);
         tf_is_initialized = true;
-      } catch (...) { std::this_thread::sleep_for(1s); }
+      } catch (...) {
+        RCLCPP_ERROR(this->get_logger(), "TF lookup timeout, it is normal if it happens at startup. Retrying..");
+        std::this_thread::sleep_for(1s);
+      }
     }
 
     return true;
