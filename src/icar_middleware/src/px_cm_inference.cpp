@@ -226,8 +226,8 @@ class PXCMInference : public rclcpp::Node {
       RCLCPP_ERROR(this->get_logger(), "Failed to build pixel to cm model");
       rclcpp::shutdown();
     }
-    if (cmpx_mlp.load() == false) {
-      RCLCPP_ERROR(this->get_logger(), "Failed to load cm to pixel model");
+    if (pxcm_mlp.load() == false) {
+      RCLCPP_ERROR(this->get_logger(), "Failed to load pixel to cm model");
       rclcpp::shutdown();
     }
 
@@ -236,8 +236,8 @@ class PXCMInference : public rclcpp::Node {
       RCLCPP_ERROR(this->get_logger(), "Failed to build cm to pixel model");
       rclcpp::shutdown();
     }
-    if (pxcm_mlp.load() == false) {
-      RCLCPP_ERROR(this->get_logger(), "Failed to load pixel to cm model");
+    if (cmpx_mlp.load() == false) {
+      RCLCPP_ERROR(this->get_logger(), "Failed to load cm to pixel model");
       rclcpp::shutdown();
     }
   }

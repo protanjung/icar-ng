@@ -9,6 +9,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 set(var_dependencies
+    cv_bridge
     icar_interfaces
     pandu_ros2_kit
     pcl_conversions
@@ -22,6 +23,7 @@ set(var_dependencies
 find_package(ament_cmake REQUIRED)
 find_package(Boost REQUIRED COMPONENTS date_time filesystem)
 find_package(CUDA REQUIRED)
+find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
 find_package(TensorRT REQUIRED)
 foreach(dependency ${var_dependencies})
@@ -31,6 +33,7 @@ endforeach()
 include_directories(
   ${Boost_INCLUDE_DIRS}
   ${CUDA_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
   ${TensorRT_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
@@ -53,7 +56,7 @@ ament_target_dependencies(road_segmentation ${var_dependencies})
 ament_target_dependencies(transform_broadcaster ${var_dependencies})
 target_link_libraries(lidar_transform ${PCL_LIBRARIES})
 target_link_libraries(px_cm_inference nvonnxparser)
-target_link_libraries(road_segmentation ${PCL_LIBRARIES})
+target_link_libraries(road_segmentation ${OpenCV_LIBRARIES} ${PCL_LIBRARIES})
 
 install(
   TARGETS lidar_transform

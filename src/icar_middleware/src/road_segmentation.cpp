@@ -1,28 +1,44 @@
 #include "boost/thread/mutex.hpp"
+#include "cv_bridge/cv_bridge.h"
 #include "icar_interfaces/msg/lidar_rings.hpp"
 #include "icar_interfaces/msg/pose.hpp"
 #include "icar_interfaces/srv/px_cm_inference.hpp"
+#include "opencv2/opencv.hpp"
 #include "pandu_ros2_kit/help_marker.hpp"
 #include "pcl/filters/passthrough.h"
 #include "pcl/point_cloud.h"
 #include "pcl/point_types.h"
 #include "pcl_ros/transforms.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/image.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
+
+#define CAMERA_ORIGIN_X 375
+#define CAMERA_ORIGIN_Y 0
 
 using namespace std::chrono_literals;
 
 class RoadSegmentation : public rclcpp::Node {
  public:
-  //-----Timera
+  //-----Callback group
+  rclcpp::CallbackGroup::SharedPtr cbg;
+  //-----Timer
   rclcpp::TimerBase::SharedPtr tim_10hz;
   //-----Susbcriber
   rclcpp::Subscription<icar_interfaces::msg::LidarRings>::SharedPtr sub_lidar_base_rings;
   rclcpp::Subscription<icar_interfaces::msg::Pose>::SharedPtr sub_pose;
+  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_color_image_raw;
+  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_depth_image_raw;
+  //-----Service client
+  rclcpp::Client<icar_interfaces::srv::PxCmInference>::SharedPtr cli_pxcm_mlp;
+  rclcpp::Client<icar_interfaces::srv::PxCmInference>::SharedPtr cli_cmpx_mlp;
   //-----Transform listener
   std::unique_ptr<tf2_ros::Buffer> tf_buffer;
   std::unique_ptr<tf2_ros::TransformListener> tf_listener;
+  //-----Mutex
+  std::mutex mutex_color;
+  std::mutex mutex_depth;
   //-----Help
   HelpMarker _marker;
 
@@ -33,22 +49,40 @@ class RoadSegmentation : public rclcpp::Node {
 
   // Point cloud
   // ===========
-  pcl::PointCloud<pcl::PointXYZ> cloud_left, cloud_pool_left[20], cloud_fit_left;
-  pcl::PointCloud<pcl::PointXYZ> cloud_right, cloud_pool_right[20], cloud_fit_right;
+  pcl::PointCloud<pcl::PointXYZ> cloud_left, cloud_pool_left[20], cloud_fit_cm_left, cloud_fit_px_left;
+  pcl::PointCloud<pcl::PointXYZ> cloud_right, cloud_pool_right[20], cloud_fit_cm_right, cloud_fit_px_right;
 
   // Pose and twist
   // ==============
   geometry_msgs::msg::Pose2D pose;
   geometry_msgs::msg::Twist twist;
 
+  // Image processing
+  // ================
+  cv::Mat mat_color = cv::Mat::zeros(cv::Size(1280, 720), CV_8UC3);
+  cv::Mat mat_depth = cv::Mat::zeros(cv::Size(1280, 720), CV_16UC1);
+
   RoadSegmentation() : Node("road_segmentation") {
+    //-----Callback group
+    cbg = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
     //-----Timer
-    tim_10hz = this->create_wall_timer(100ms, std::bind(&RoadSegmentation::cllbck_tim_10hz, this));
+    tim_10hz = this->create_wall_timer(100ms, std::bind(&RoadSegmentation::cllbck_tim_10hz, this), cbg);
     //-----Subscriber
     sub_lidar_base_rings = this->create_subscription<icar_interfaces::msg::LidarRings>(
         "lidar_base/rings", 10, std::bind(&RoadSegmentation::cllbck_sub_lidar_base_rings, this, std::placeholders::_1));
     sub_pose = this->create_subscription<icar_interfaces::msg::Pose>(
         "pose", 10, std::bind(&RoadSegmentation::cllbck_sub_pose, this, std::placeholders::_1));
+    sub_color_image_raw = this->create_subscription<sensor_msgs::msg::Image>(
+        "color/image_raw", 1, std::bind(&RoadSegmentation::cllbck_sub_color_image_raw, this, std::placeholders::_1));
+    sub_depth_image_raw = this->create_subscription<sensor_msgs::msg::Image>(
+        "aligned_depth_to_color/image_raw",
+        1,
+        std::bind(&RoadSegmentation::cllbck_sub_depth_image_raw, this, std::placeholders::_1));
+    //-----Service client
+    cli_pxcm_mlp =
+        this->create_client<icar_interfaces::srv::PxCmInference>("pxcm_mlp", rmw_qos_profile_services_default, cbg);
+    cli_cmpx_mlp =
+        this->create_client<icar_interfaces::srv::PxCmInference>("cmpx_mlp", rmw_qos_profile_services_default, cbg);
     //-----Tranform listener
     tf_buffer = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener = std::make_unique<tf2_ros::TransformListener>(*tf_buffer);
@@ -174,20 +208,73 @@ class RoadSegmentation : public rclcpp::Node {
 
     // * Fitting
     // * =======
-    fit_cloud(cloud_left, -5.0, 20.0, 0.1, cloud_fit_left);
-    fit_cloud(cloud_right, -5.0, 20.0, 0.1, cloud_fit_right);
+    fit_cloud(cloud_left, 3.0, 12.0, 0.5, cloud_fit_cm_left);
+    fit_cloud(cloud_right, 3.0, 12.0, 0.5, cloud_fit_cm_right);
+
+    // * CM to PX
+    // * ========
+    cloud_fit_px_left.clear();
+    cloud_fit_px_right.clear();
+    for (const auto &point : cloud_fit_cm_left.points) {
+      float input[2] = {point.x * 100 - CAMERA_ORIGIN_X, point.y * 100 - CAMERA_ORIGIN_Y};
+      float output[2];
+      cmpx_mlp_call(input, output);
+
+      pcl::PointXYZ p;
+      p.x = output[0];
+      p.y = output[1];
+      p.z = 0;
+      cloud_fit_px_left.push_back(p);
+    }
+    for (const auto &point : cloud_fit_cm_right.points) {
+      float input[2] = {point.x * 100 - CAMERA_ORIGIN_X, point.y * 100 - CAMERA_ORIGIN_Y};
+      float output[2];
+      cmpx_mlp_call(input, output);
+
+      pcl::PointXYZ p;
+      p.x = output[0];
+      p.y = output[1];
+      p.z = 0;
+      cloud_fit_px_right.push_back(p);
+    }
 
     // * Visualization
     // * =============
     draw_cloud("road_candidate", 1, cloud_left, {0.5, 0.6, 0.5, 1.0}, 0.1, 0.1);
     draw_cloud("road_candidate", 2, cloud_right, {1.0, 0.6, 0.5, 1.0}, 0.1, 0.1);
-    draw_cloud("road_candidate", 3, cloud_fit_left, {0.5, 0.6, 1.0, 1.0}, 0.1, 0.1);
-    draw_cloud("road_candidate", 4, cloud_fit_right, {1.0, 0.6, 1.0, 1.0}, 0.1, 0.1);
+    draw_cloud("road_candidate", 3, cloud_fit_cm_left, {0.5, 0.6, 1.0, 1.0}, 0.1, 0.1);
+    draw_cloud("road_candidate", 4, cloud_fit_cm_right, {1.0, 0.6, 1.0, 1.0}, 0.1, 0.1);
+
+    mutex_color.lock();
+    cv::Mat canvas = mat_color.clone();
+    mutex_color.unlock();
+
+    for (const auto &point : cloud_fit_px_left.points) {
+      cv::circle(canvas, cv::Point(point.x, point.y), 5, cv::Scalar(127, 255, 0), -1);
+    }
+    for (const auto &point : cloud_fit_px_right.points) {
+      cv::circle(canvas, cv::Point(point.x, point.y), 5, cv::Scalar(255, 127, 0), -1);
+    }
+
+    cv::imshow("canvas", canvas);
+    cv::waitKey(1);
   }
 
   void cllbck_sub_pose(const icar_interfaces::msg::Pose::SharedPtr msg) {
     pose = msg->pose;
     twist = msg->twist;
+  }
+
+  void cllbck_sub_color_image_raw(const sensor_msgs::msg::Image::SharedPtr msg) {
+    if (!mutex_color.try_lock()) { return; }
+    mat_color = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8)->image;
+    mutex_color.unlock();
+  }
+
+  void cllbck_sub_depth_image_raw(const sensor_msgs::msg::Image::SharedPtr msg) {
+    if (!mutex_depth.try_lock()) { return; }
+    mat_depth = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO16)->image;
+    mutex_depth.unlock();
   }
 
   // ===================================
@@ -485,6 +572,44 @@ class RoadSegmentation : public rclcpp::Node {
     out.x = c * (in.x - origin_x) - s * (in.y - origin_y) + origin_x;
     out.y = s * (in.x - origin_x) + c * (in.y - origin_y) + origin_y;
     out.z = in.z;
+  }
+
+  // ===================================
+
+  void pxcm_mlp_call(float *input, float *output) {
+    if (cli_pxcm_mlp->wait_for_service(1s) == false) {
+      RCLCPP_ERROR(this->get_logger(), "Failed to connect to pxcm_mlp");
+      return;
+    }
+
+    auto request = std::make_shared<icar_interfaces::srv::PxCmInference::Request>();
+    request->x = input[0];
+    request->y = input[1];
+
+    auto result = cli_pxcm_mlp->async_send_request(request);
+    result.wait();
+
+    auto response = result.get();
+    output[0] = response->x;
+    output[1] = response->y;
+  }
+
+  void cmpx_mlp_call(float *input, float *output) {
+    if (cli_cmpx_mlp->wait_for_service(1s) == false) {
+      RCLCPP_ERROR(this->get_logger(), "Failed to connect to cmpx_mlp");
+      return;
+    }
+
+    auto request = std::make_shared<icar_interfaces::srv::PxCmInference::Request>();
+    request->x = input[0];
+    request->y = input[1];
+
+    auto result = cli_cmpx_mlp->async_send_request(request);
+    result.wait();
+
+    auto response = result.get();
+    output[0] = response->x;
+    output[1] = response->y;
   }
 };
 

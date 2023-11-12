@@ -16,6 +16,7 @@ class TransformBroadcaster : public rclcpp::Node {
   std::vector<double> icar_tf_front_axle;
   std::vector<double> icar_tf_gps;
   std::vector<double> icar_tf_body;
+  std::vector<double> icar_tf_camera;
   std::vector<double> icar_tf_lidar_front;
   std::vector<double> icar_tf_lidar_rearright;
   //-----Timer
@@ -32,12 +33,14 @@ class TransformBroadcaster : public rclcpp::Node {
     this->declare_parameter("icar.tf.front_axle", std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
     this->declare_parameter("icar.tf.gps", std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
     this->declare_parameter("icar.tf.body", std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
+    this->declare_parameter("icar.tf.camera", std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
     this->declare_parameter("icar.tf.lidar_front", std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
     this->declare_parameter("icar.tf.lidar_rearright", std::vector<double>{0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
     this->get_parameter("icar.tf.rear_axle", icar_tf_rear_axle);
     this->get_parameter("icar.tf.front_axle", icar_tf_front_axle);
     this->get_parameter("icar.tf.gps", icar_tf_gps);
     this->get_parameter("icar.tf.body", icar_tf_body);
+    this->get_parameter("icar.tf.camera", icar_tf_camera);
     this->get_parameter("icar.tf.lidar_front", icar_tf_lidar_front);
     this->get_parameter("icar.tf.lidar_rearright", icar_tf_lidar_rearright);
     //-----Timer
@@ -78,6 +81,7 @@ class TransformBroadcaster : public rclcpp::Node {
     send_static_transform(icar_tf_front_axle, "base_link", "front_axle_link");
     send_static_transform(icar_tf_gps, "base_link", "gps_link");
     send_static_transform(icar_tf_body, "base_link", "body_link");
+    send_static_transform(icar_tf_camera, "base_link", "camera_link");
     send_static_transform(icar_tf_lidar_front, "base_link", "lidar_front_link");
     send_static_transform(icar_tf_lidar_rearright, "base_link", "lidar_rearright_link");
 
