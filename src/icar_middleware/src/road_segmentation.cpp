@@ -109,6 +109,7 @@ class RoadSegmentation : public rclcpp::Node {
 
     static const float origin_x = tf_base_lidar_front.transform.translation.x;
     static const float origin_y = tf_base_lidar_front.transform.translation.y;
+    static const float origin_z = tf_base_lidar_front.transform.translation.z;
 
     // * Delta height
     // * ============
@@ -120,7 +121,7 @@ class RoadSegmentation : public rclcpp::Node {
       pcl::PointXYZ step2_left, step2_right;
       pcl::PointXYZ step3_left, step3_right;
 
-      ring_to_cloud(msg->ring[i], step0);
+      ring_to_cloud(msg->ring[i], step0, origin_x, origin_y, origin_z);
       rotate_cloud(step0, step1, 0, origin_x, origin_y);
       find_delta_height(step1, step2_left, step2_right);
       rotate_point(step2_left, step3_left, 0, origin_x, origin_y);
@@ -140,7 +141,7 @@ class RoadSegmentation : public rclcpp::Node {
       pcl::PointXYZ step2_left, step2_right;
       pcl::PointXYZ step3_left, step3_right;
 
-      ring_to_cloud(msg->ring[i], step0);
+      ring_to_cloud(msg->ring[i], step0, origin_x, origin_y, origin_z);
       rotate_cloud(step0, step1, 0, origin_x, origin_y);
       find_delta_length(step1, step2_left, step2_right);
       rotate_point(step2_left, step3_left, 0, origin_x, origin_y);
@@ -165,6 +166,8 @@ class RoadSegmentation : public rclcpp::Node {
 
     // * Pooling
     // * =======
+    bool is_new_pool = false;
+
     static geometry_msgs::msg::Pose2D last_pose;
     float dx = pose.x - last_pose.x;
     float dy = pose.y - last_pose.y;
@@ -204,60 +207,89 @@ class RoadSegmentation : public rclcpp::Node {
 
       /* Update last pose. */
       last_pose = pose;
+
+      /* Set flag to true. */
+      is_new_pool = true;
     }
 
     // * Fitting
     // * =======
-    fit_cloud(cloud_left, 3.0, 12.0, 0.5, cloud_fit_cm_left);
-    fit_cloud(cloud_right, 3.0, 12.0, 0.5, cloud_fit_cm_right);
+    if (is_new_pool) {
+      fit_cloud(cloud_left, 3.0, 12.0, 0.5, cloud_fit_cm_left);
+      fit_cloud(cloud_right, 3.0, 12.0, 0.5, cloud_fit_cm_right);
+    }
 
     // * CM to PX
     // * ========
-    cloud_fit_px_left.clear();
-    cloud_fit_px_right.clear();
-    for (const auto &point : cloud_fit_cm_left.points) {
-      float input[2] = {point.x * 100 - CAMERA_ORIGIN_X, point.y * 100 - CAMERA_ORIGIN_Y};
-      float output[2];
-      cmpx_mlp_call(input, output);
+    if (is_new_pool) {
+      cloud_fit_px_left.clear();
+      cloud_fit_px_right.clear();
+      for (const auto &point : cloud_fit_cm_left.points) {
+        float input[2] = {point.x * 100 - CAMERA_ORIGIN_X, point.y * 100 - CAMERA_ORIGIN_Y};
+        float output[2];
+        cmpx_mlp_call(input, output);
 
-      pcl::PointXYZ p;
-      p.x = output[0];
-      p.y = output[1];
-      p.z = 0;
-      cloud_fit_px_left.push_back(p);
-    }
-    for (const auto &point : cloud_fit_cm_right.points) {
-      float input[2] = {point.x * 100 - CAMERA_ORIGIN_X, point.y * 100 - CAMERA_ORIGIN_Y};
-      float output[2];
-      cmpx_mlp_call(input, output);
+        pcl::PointXYZ p;
+        p.x = output[0];
+        p.y = output[1];
+        p.z = 0;
+        cloud_fit_px_left.push_back(p);
+      }
+      for (const auto &point : cloud_fit_cm_right.points) {
+        float input[2] = {point.x * 100 - CAMERA_ORIGIN_X, point.y * 100 - CAMERA_ORIGIN_Y};
+        float output[2];
+        cmpx_mlp_call(input, output);
 
-      pcl::PointXYZ p;
-      p.x = output[0];
-      p.y = output[1];
-      p.z = 0;
-      cloud_fit_px_right.push_back(p);
+        pcl::PointXYZ p;
+        p.x = output[0];
+        p.y = output[1];
+        p.z = 0;
+        cloud_fit_px_right.push_back(p);
+      }
     }
 
     // * Visualization
     // * =============
-    draw_cloud("road_candidate", 1, cloud_left, {0.5, 0.6, 0.5, 1.0}, 0.1, 0.1);
-    draw_cloud("road_candidate", 2, cloud_right, {1.0, 0.6, 0.5, 1.0}, 0.1, 0.1);
-    draw_cloud("road_candidate", 3, cloud_fit_cm_left, {0.5, 0.6, 1.0, 1.0}, 0.1, 0.1);
-    draw_cloud("road_candidate", 4, cloud_fit_cm_right, {1.0, 0.6, 1.0, 1.0}, 0.1, 0.1);
+    if (is_new_pool) {
+      draw_cloud("road_candidate_delta_height", 1, cloud_delta_height_left, {0.5, 0.5, 0.5, 1.0}, 0.1, 0.1);
+      draw_cloud("road_candidate_delta_height", 2, cloud_delta_height_right, {1.0, 0.5, 0.5, 1.0}, 0.1, 0.1);
+      draw_cloud("road_candidate_delta_length", 1, cloud_delta_length_left, {0.5, 0.0, 0.5, 1.0}, 0.1, 0.1);
+      draw_cloud("road_candidate_delta_length", 2, cloud_delta_length_right, {1.0, 0.0, 0.5, 1.0}, 0.1, 0.1);
+      draw_cloud("road_candidate_tangent_angle", 1, cloud_tangent_angle_left, {0.5, 0.5, 0.0, 1.0}, 0.1, 0.1);
+      draw_cloud("road_candidate_tangent_angle", 2, cloud_tangent_angle_right, {1.0, 0.5, 0.0, 1.0}, 0.1, 0.1);
+      draw_cloud("road_candidate", 1, cloud_left, {0.5, 0.6, 0.5, 1.0}, 0.1, 0.1);
+      draw_cloud("road_candidate", 2, cloud_right, {1.0, 0.6, 0.5, 1.0}, 0.1, 0.1);
+      draw_cloud("road_candidate_fit", 1, cloud_fit_cm_left, {0.5, 0.6, 1.0, 1.0}, 0.1, 0.1);
+      draw_cloud("road_candidate_fit", 2, cloud_fit_cm_right, {1.0, 0.6, 1.0, 1.0}, 0.1, 0.1);
 
-    mutex_color.lock();
-    cv::Mat canvas = mat_color.clone();
-    mutex_color.unlock();
+      mutex_color.lock();
+      cv::Mat canvas = mat_color.clone();
+      mutex_color.unlock();
 
-    for (const auto &point : cloud_fit_px_left.points) {
-      cv::circle(canvas, cv::Point(point.x, point.y), 5, cv::Scalar(127, 255, 0), -1);
+      for (const auto &point : cloud_fit_px_left.points) {
+        cv::circle(canvas, cv::Point(point.x, point.y), 10, cv::Scalar(127, 0, 255), -1);
+      }
+      for (const auto &point : cloud_fit_px_right.points) {
+        cv::circle(canvas, cv::Point(point.x, point.y), 10, cv::Scalar(255, 127, 127), -1);
+      }
+
+      std::vector<cv::Point> polygon;
+      polygon.push_back(cv::Point(0, 720));
+      polygon.push_back(cv::Point(1280, 720));
+      for (int i = 0; i < cloud_fit_px_right.points.size(); i++) {
+        polygon.push_back(cv::Point(cloud_fit_px_right.points[i].x, cloud_fit_px_right.points[i].y));
+      }
+      for (int i = cloud_fit_px_left.points.size() - 1; i >= 0; i--) {
+        polygon.push_back(cv::Point(cloud_fit_px_left.points[i].x, cloud_fit_px_left.points[i].y));
+      }
+
+      cv::Mat overlay = cv::Mat::zeros(cv::Size(1280, 720), CV_8UC3);
+      cv::fillConvexPoly(overlay, polygon, cv::Scalar(0, 255, 0), cv::LINE_AA);
+      cv::addWeighted(canvas, 0.75, overlay, 0.25, 0.0, canvas);
+
+      cv::imshow("canvas", canvas);
+      cv::waitKey(1);
     }
-    for (const auto &point : cloud_fit_px_right.points) {
-      cv::circle(canvas, cv::Point(point.x, point.y), 5, cv::Scalar(255, 127, 0), -1);
-    }
-
-    cv::imshow("canvas", canvas);
-    cv::waitKey(1);
   }
 
   void cllbck_sub_pose(const icar_interfaces::msg::Pose::SharedPtr msg) {
@@ -308,7 +340,7 @@ class RoadSegmentation : public rclcpp::Node {
 
     // * Left side
     // * =========
-    for (float y = 0.5; y < 5.0; y += 0.2) {  // ! FIX NOISE
+    for (float y = 0.0; y < 5.0; y += 0.2) {
       pcl::PointCloud<pcl::PointXYZ> temp;
       pass.setFilterLimits(y, y + 0.2);
       pass.filter(temp);
@@ -332,7 +364,7 @@ class RoadSegmentation : public rclcpp::Node {
 
     // * Right side
     // * ==========
-    for (float y = -0.5; y > -5.0; y -= 0.2) {  // ! FIX NOISE
+    for (float y = 0.0; y > -5.0; y -= 0.2) {
       pcl::PointCloud<pcl::PointXYZ> temp;
       pass.setFilterLimits(y - 0.2, y);
       pass.filter(temp);
@@ -362,7 +394,7 @@ class RoadSegmentation : public rclcpp::Node {
 
     // * Left side
     // * =========
-    for (float y = 0.5; y < 5.0; y += 0.2) {  // ! FIX NOISE
+    for (float y = 0.0; y < 5.0; y += 0.2) {
       pcl::PointCloud<pcl::PointXYZ> temp;
       pass.setFilterLimits(y, y + 0.2);
       pass.filter(temp);
@@ -386,7 +418,7 @@ class RoadSegmentation : public rclcpp::Node {
 
     // * Right side
     // * ==========
-    for (float y = -0.5; y > -5.0; y -= 0.2) {  // ! FIX NOISE
+    for (float y = 0.0; y > -5.0; y -= 0.2) {
       pcl::PointCloud<pcl::PointXYZ> temp;
       pass.setFilterLimits(y - 0.2, y);
       pass.filter(temp);
@@ -426,7 +458,7 @@ class RoadSegmentation : public rclcpp::Node {
 
     // * Left side
     // * =========
-    for (int i = index_offset + 50; i < 88; i++) {  // ! FIX NOISE
+    for (int i = index_offset + 48; i < 88; i++) {
       float tangent0_x = in.point[i - 2].x;
       float tangent0_y = in.point[i - 2].y;
       float tangent1_x = in.point[i + 2].x;
@@ -434,10 +466,10 @@ class RoadSegmentation : public rclcpp::Node {
       float radial_x = in.point[i].x;
       float radial_y = in.point[i].y;
 
-      float angle_tanget = atan2f(tangent1_y - tangent0_y, tangent1_x - tangent0_x);
+      float angle_tangent = atan2f(tangent1_y - tangent0_y, tangent1_x - tangent0_x);
       float angle_radial = atan2f(radial_y - origin_y, radial_x - origin_x);
 
-      if (sinf(angle_tanget - angle_radial) < 0.80) {
+      if (cosf(angle_tangent - angle_radial) > 0.5 || cosf(angle_tangent - angle_radial) < -0.5) {
         out_left.x = radial_x;
         out_left.y = radial_y;
         out_left.z = in.point[i].z;
@@ -447,7 +479,7 @@ class RoadSegmentation : public rclcpp::Node {
 
     // * Right side
     // * ==========
-    for (int i = index_offset + 40; i > 2; i--) {  // ! FIX NOISE
+    for (int i = index_offset + 42; i > 2; i--) {
       float tangent0_x = in.point[i - 2].x;
       float tangent0_y = in.point[i - 2].y;
       float tangent1_x = in.point[i + 2].x;
@@ -455,10 +487,10 @@ class RoadSegmentation : public rclcpp::Node {
       float radial_x = in.point[i].x;
       float radial_y = in.point[i].y;
 
-      float angle_tanget = atan2f(tangent1_y - tangent0_y, tangent1_x - tangent0_x);
+      float angle_tangent = atan2f(tangent1_y - tangent0_y, tangent1_x - tangent0_x);
       float angle_radial = atan2f(radial_y - origin_y, radial_x - origin_x);
 
-      if (sinf(angle_tanget - angle_radial) < 0.80) {
+      if (cosf(angle_tangent - angle_radial) > 0.5 || cosf(angle_tangent - angle_radial) < -0.5) {
         out_right.x = radial_x;
         out_right.y = radial_y;
         out_right.z = in.point[i].z;
@@ -469,14 +501,24 @@ class RoadSegmentation : public rclcpp::Node {
 
   // ===================================
 
-  void ring_to_cloud(const icar_interfaces::msg::LidarRing &in, pcl::PointCloud<pcl::PointXYZ> &out) {
+  void ring_to_cloud(
+      const icar_interfaces::msg::LidarRing &in,
+      pcl::PointCloud<pcl::PointXYZ> &out,
+      float origin_x,
+      float origin_y,
+      float origin_z) {
     out.clear();
     for (const auto &point : in.point) {
-      pcl::PointXYZ p;
-      p.x = point.x;
-      p.y = point.y;
-      p.z = point.z;
-      out.push_back(p);
+      float dx = point.x - origin_x;
+      float dy = point.y - origin_y;
+      float dz = point.z - origin_z;
+      if (sqrtf(dx * dx + dy * dy + dz * dz) > 0.1) {
+        pcl::PointXYZ p;
+        p.x = point.x;
+        p.y = point.y;
+        p.z = point.z;
+        out.push_back(p);
+      }
     }
   }
 
