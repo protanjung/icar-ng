@@ -262,33 +262,51 @@ class RoadSegmentation : public rclcpp::Node {
       draw_cloud("road_candidate_fit", 1, cloud_fit_cm_left, {0.5, 0.6, 1.0, 1.0}, 0.1, 0.1);
       draw_cloud("road_candidate_fit", 2, cloud_fit_cm_right, {1.0, 0.6, 1.0, 1.0}, 0.1, 0.1);
 
-      mutex_color.lock();
-      cv::Mat canvas = mat_color.clone();
-      mutex_color.unlock();
+      // static std::vector<std::vector<float>> color;
+      // if (color.empty()) {
+      //   for (int i = 0; i < 100; i++) {
+      //     std::vector<float> c;
+      //     c.push_back(rand() % 255 / 255.0);
+      //     c.push_back(rand() % 255 / 255.0);
+      //     c.push_back(rand() % 255 / 255.0);
+      //     c.push_back(1.0);
+      //     color.push_back(c);
+      //   }
+      // }
 
-      for (const auto &point : cloud_fit_px_left.points) {
-        cv::circle(canvas, cv::Point(point.x, point.y), 10, cv::Scalar(127, 0, 255), -1);
-      }
-      for (const auto &point : cloud_fit_px_right.points) {
-        cv::circle(canvas, cv::Point(point.x, point.y), 10, cv::Scalar(255, 127, 127), -1);
-      }
+      // for (int i = 0; i < 16; i++) {
+      //   pcl::PointCloud<pcl::PointXYZ> cloud;
+      //   ring_to_cloud(msg->ring[i], cloud, origin_x, origin_y, origin_z);
+      //   draw_cloud("lidar_ring", i + 1, cloud, color[i], 0.1, 0.1);
+      // }
 
-      std::vector<cv::Point> polygon;
-      polygon.push_back(cv::Point(0, 720));
-      polygon.push_back(cv::Point(1280, 720));
-      for (int i = 0; i < cloud_fit_px_right.points.size(); i++) {
-        polygon.push_back(cv::Point(cloud_fit_px_right.points[i].x, cloud_fit_px_right.points[i].y));
-      }
-      for (int i = cloud_fit_px_left.points.size() - 1; i >= 0; i--) {
-        polygon.push_back(cv::Point(cloud_fit_px_left.points[i].x, cloud_fit_px_left.points[i].y));
-      }
+      // mutex_color.lock();
+      // cv::Mat canvas = mat_color.clone();
+      // mutex_color.unlock();
 
-      cv::Mat overlay = cv::Mat::zeros(cv::Size(1280, 720), CV_8UC3);
-      cv::fillConvexPoly(overlay, polygon, cv::Scalar(0, 255, 0), cv::LINE_AA);
-      cv::addWeighted(canvas, 0.75, overlay, 0.25, 0.0, canvas);
+      // for (const auto &point : cloud_fit_px_left.points) {
+      //   cv::circle(canvas, cv::Point(point.x, point.y), 10, cv::Scalar(127, 0, 255), -1);
+      // }
+      // for (const auto &point : cloud_fit_px_right.points) {
+      //   cv::circle(canvas, cv::Point(point.x, point.y), 10, cv::Scalar(255, 127, 127), -1);
+      // }
 
-      cv::imshow("canvas", canvas);
-      cv::waitKey(1);
+      // std::vector<cv::Point> polygon;
+      // polygon.push_back(cv::Point(0, 720));
+      // polygon.push_back(cv::Point(1280, 720));
+      // for (int i = 0; i < cloud_fit_px_right.points.size(); i++) {
+      //   polygon.push_back(cv::Point(cloud_fit_px_right.points[i].x, cloud_fit_px_right.points[i].y));
+      // }
+      // for (int i = cloud_fit_px_left.points.size() - 1; i >= 0; i--) {
+      //   polygon.push_back(cv::Point(cloud_fit_px_left.points[i].x, cloud_fit_px_left.points[i].y));
+      // }
+
+      // cv::Mat overlay = cv::Mat::zeros(cv::Size(1280, 720), CV_8UC3);
+      // cv::fillConvexPoly(overlay, polygon, cv::Scalar(0, 255, 0), cv::LINE_AA);
+      // cv::addWeighted(canvas, 0.75, overlay, 0.25, 0.0, canvas);
+
+      // cv::imshow("canvas", canvas);
+      // cv::waitKey(1);
     }
   }
 
